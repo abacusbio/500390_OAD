@@ -1,0 +1,191 @@
+---
+title: "Summary statistics Production data"
+author: "Luna Zhang"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+   # theme: cosmo
+   # highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F,
+                      root.dir = "e:/500390_OAD/output/sumstat_production/" )
+```
+
+Preliminary analysis of **ProductionExtract.csv**  
+
+The objective is to get cleaned useful herds and cows for subsequent analysis.
+Also to generate milk type (OAD, TAD, Transition) and find the transition year.
+
+```{r, include=F}
+# Luna Zhang Feb 28 2022
+
+# library(data.table)
+suppressWarnings({
+  library(tidyverse)
+  library(ggpubr)
+})
+
+# source("utils.R")
+
+fileDir <- "e:/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
+rawfileDir <- "z:/Luna/500390_OAD/OAD Dairy Data/"
+outputDir <- "e:/500390_OAD/output/sumstat_production/" # copy to "z:/Luna/500390_OAD/output/" later
+
+if(!exists(outputDir)) {
+  dir.create(outputDir)
+}
+# stop()
+
+df_new <- readRDS(paste0(fileDir, "production_after2006_noTransferHerd_noGapYearHerd_noGapYearAnim_noBackToTAD.RData"))
+```
+
+```{r, eval = F}
+nrow(df)
+unique(df$HerdDurableKey) %>% length() #
+unique(df$HerdDurableKey) %>% length() #
+unique(df$AnimalDurableCode) %>% length()
+
+names(df_new)
+# [1] "AnimalDurableCode"             "DaysFromBirthToParturition"   
+# [3] "DaysFromParturitionToHerdTest" "InducedParturitionFlag"       
+# [5] "Volume_ml"                     "FatVolume_ml"                 
+# [7] "ProteinVolume_ml"              "AgeParity"                    
+# [9] "HerdDurableKey"                "DairyYear"                    
+# [11] "Season"                        "EventDate"                    
+# [13] "AgeParityGroup"                "RegimeType"                   
+# [15] "event_date"                    "year"      
+```
+
+## Year and season count
+
+2006 season 1 and 2022 season 1 have very few data points.
+
+```{r, fig.height=10}
+year_season <- select(df_new, HerdDurableKey, AnimalDurableCode, year, Season) %>% 
+  mutate(year_season = paste(year, Season, sep = "_")) 
+
+cross_cow_year_season <- group_by(year_season, year_season) %>% 
+  tally()
+# print(cross_cow_year_season)
+ggbarplot(cross_cow_year_season, "year_season", "n", 
+          orientation = "horiz", fill = "steelblue",
+          label = T, label.pos = "out")
+
+# sumstat_year_season <- group_by(year_season, HerdDurableKey, year_season) %>% 
+#   tally()
+```
+
+## Herd test distribution
+
+Across herds and animals number of herd tests
+```{r}
+# within herd n herd tests
+n_herd_tests <- group_by(df_new, HerdDurableKey, AnimalDurableCode) %>% 
+  tally()
+
+sumstat_n_tests <- group_by(n_herd_tests, HerdDurableKey) %>% 
+  summarise(mean = mean(n), median = median(n), min = min(n), max = max(n)) %>% 
+  pivot_longer(-HerdDurableKey, names_to = "statistics", values_to = "value")
+
+group_by(df_new, AnimalDurableCode) %>%
+  tally() %>%
+  gghistogram(x = "n", binwidth = 1, add = "mean", fill = "steelblue",
+              title = paste0("Numer of herd tests per cow, ", 
+                             length(unique(df_new$AnimalDurableCode)), 
+                             " total cows"))
+```
+
+Within herds number of herd tests
+
+```{r}
+gghistogram(sumstat_n_tests, x = "value", facet.by = "statistics", rug = T,
+            add = "mean", binwidth = 1, fill = "steelgrey",
+            title = paste0("Number of herd tests per cow in each herd, ", 
+                           nrow(sumstat_n_tests)/4, " total herds"))
+
+```
+
+## Age Parity distribution
+
+Across herds and animal
+```{r pressure}
+# ageparity distr across herd vs herd mean distr
+min_year <- min(df_new$year)
+max_year <- max(df_new$year)
+
+# 2007 SEASON 0 and 2006 season 1 are the same season
+test <- filter(df_new, year==min_year & Season == 1)
+season_2007 <- filter(df_new, year==min_year+1 & Season==0)
+season_2007 <- rbind(test, season_2007) # contains multiple tests of one cow
+
+# Find the index of 1st occurrence of each animal ID
+a <- data.frame(table(season_2007$AnimalDurableCode))
+a$var <- as.character(a$Var1)
+# all(a$var==unique(season_2007$AnimalDurableCode)) # sanity check
+a <- a[match(unique(season_2007$AnimalDurableCode), a$var),]
+# all(a$var==unique(season_2007$AnimalDurableCode)) # sanity check
+a$idx <- cumsum(a$Freq)-a$Freq + 1
+idx <- a$idx
+idx <- c(idx, nrow(season_2007)+1) # for the last set of animal IDs◘
+a <- NULL
+
+# length(idx)-1 # 490300 unique animal ID
+idx <- tail(idx-1, -1) # last record of each animal ID
+season_2007 <- season_2007[idx,]
+# length(unique(season_2007$AnimalDurableCode))==nrow(season_2007) # sanity check
+
+sumstat_ageparity_herd_2007 <- group_by(season_2007, HerdDurableKey) %>% 
+  summarise(mean = mean(AgeParity), median = median(AgeParity),
+            min = min(AgeParity), max = max(AgeParity)) %>% 
+  pivot_longer(-HerdDurableKey, names_to = "statistics", values_to = "value")
+
+summarise(season_2007, mean = mean(AgeParity), median = median(AgeParity),
+            min = min(AgeParity), max = max(AgeParity))
+```
+
+Within herds
+
+```{r}
+gghistogram(sumstat_ageparity_herd_2007, 
+            x = "value", facet.by = "statistics", rug = T,
+            add = "mean", binwidth = 1,  fill = "steelblue",
+            title = paste0("AgeParity of the last herd test in 2007, ", 
+                           nrow(sumstat_ageparity_herd_2007)/4, " total herds"))
+
+```
+
+## milk_type (OAD, TAD, TRANSITION), herd percent OAD distribution
+
+The number of TAD and TRANS herds is way smaller than the number of OAD herds,
+possibly due to the aggressive cleaning. Nonetheless, the count is still high,
+so we have enough data point to analyse.
+
+```{r}
+milk_type_herd <- select(df_new, HerdDurableKey, event_date, year, milk_type) %>% 
+  distinct()
+# which(duplicated(milk_type_herd[1:2,])) %>% length() # sanity check
+
+milk_type_herd <- select(df_new, HerdDurableKey, milk_type) %>% distinct()
+# length(unique(milk_type_herd$HerdDurableKey))==nrow(milk_type_herd) # sanity check
+sumstat_milk_type_herd <- group_by(milk_type_herd, milk_type) %>% 
+  tally() %>% mutate(prop = round(n/sum(n), digits = 2))
+
+print(sumstat_milk_type_herd)
+
+```
+
+## Transition year distribution
+
+```{r}
+transition_year <- select(df_new, HerdDurableKey, transition_year, milk_type) %>% 
+  distinct() %>% 
+  filter(milk_type == "TRANS")
+
+gghistogram(transition_year, "transition_year", binwidth = 1, fill = "steelblue",
+            title = paste0("Transition year distribution among ", 
+                           nrow(transition_year), " herds"))
+```
