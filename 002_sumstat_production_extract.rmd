@@ -40,14 +40,17 @@ if(!exists(outputDir)) {
 }
 # stop()
 
-df_new <- readRDS(paste0(fileDir, "production_after2006_noTransferHerd_noGapYearHerd_noGapYearAnim_noBackToTAD.RData"))
+df_new <- readRDS(paste0(fileDir, 
+                         "production_after2006_noTransferHerd_noGapYearHerd_",
+                         "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
+                         "noBackToTADHerd.RData"))
 ```
 
 ```{r, eval = F}
-nrow(df)
-unique(df$HerdDurableKey) %>% length() #
-unique(df$HerdDurableKey) %>% length() #
-unique(df$AnimalDurableCode) %>% length()
+nrow(df_new)
+unique(df_new$HerdDurableKey) %>% length() #
+unique(df_new$HerdDurableKey) %>% length() #
+unique(df_new$AnimalDurableCode) %>% length()
 
 names(df_new)
 # [1] "AnimalDurableCode"             "DaysFromBirthToParturition"   
@@ -62,7 +65,7 @@ names(df_new)
 
 ## Year and season count
 
-2006 season 1 and 2022 season 1 have very few data points.
+2007 and 2022 season 0 have less data points.
 
 ```{r, fig.height=10}
 year_season <- select(df_new, HerdDurableKey, AnimalDurableCode, year, Season) %>% 
@@ -103,7 +106,7 @@ Within herds number of herd tests
 
 ```{r}
 gghistogram(sumstat_n_tests, x = "value", facet.by = "statistics", rug = T,
-            add = "mean", binwidth = 1, fill = "steelgrey",
+            add = "mean", binwidth = 1, fill = "steelblue",
             title = paste0("Number of herd tests per cow in each herd, ", 
                            nrow(sumstat_n_tests)/4, " total herds"))
 

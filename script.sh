@@ -24,13 +24,13 @@ rm tmp cont_group header
 head -n 1 productionextract > header
 # remove test records before 2006 (DairyYear)
 awk '{print $10}' productionextract |sort -u # 1986 - 2021
-awk '{ if ($10 >= 2006) { print } }' productionextract > tmp
-awk '{ if ($10 < 2006) print }' tmp |wc -l # saniy check
+awk '{ if ($10 >= 2007) { print } }' productionextract > tmp
+awk '{ if ($10 < 2007) print }' tmp |wc -l # saniy check
 awk '{print $10}' tmp | sort -u # sanity check
 head tmp # sanity check
 tail tmp # sanity check
-wc -l tmp # 126,900,184 very few? 248,128,749*16/36=110,279,444
-awk '{ if ($10 < 2006) { print } }' productionextract |wc -l # 121,228,565
+wc -l tmp # 120,565,069 very few? 248,128,749*16/36=110,279,444
+awk '{ if ($10 < 2007) { print } }' productionextract |wc -l # 6335115
 awk '{ if ($10="") { print } }' productionextract |wc -l # 0
 # sed 's/\t/ /g' tmp
 mv tmp productionextract
@@ -39,7 +39,11 @@ mv tmp productionextract
 
 ##-- sort by AnimalDurableCode, event_date --##
 
-sort -k1,1 -k3,3 -t' ' ../output/animal_herd_eventDate.csv >tmp
+sort -c ../output/animal_herd_eventDate.csv # sanity check
+tail -n +2 ../output/animal_herd_eventDate.csv > tmp
+head -n 1 ../output/animal_herd_eventDate.csv >header
+sort -k2,2n -k1,1 -k3,3 -t',' tmp > tmp_sorted
 sort -c tmp # sanity check
-sed 's/ /,/g' tmp > animal_eventDate_herd_sorted
+cat header tmp > animal_herd_eventDate_herd_sorted
+# sed 's/ /,/g' tmp > animal_eventDate_herd_sorted
 
