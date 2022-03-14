@@ -15,8 +15,6 @@ knitr::opts_chunk$set(echo = F, warning = F, message = F,
                       root.dir = "e:/500390_OAD/output/sumstat_production/" )
 ```
 
-Preliminary analysis of **ProductionExtract.csv**  
-
 The objective is to get cleaned useful herds and cows for subsequent analysis.
 Also to generate milk type (OAD, TAD, Transition) and find the transition year.
 
@@ -44,31 +42,98 @@ df_new <- readRDS(paste0(fileDir,
                          "production_after2006_noTransferHerd_noGapYearHerd_",
                          "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
                          "noBackToTADHerd.RData"))
-event_milk_type <- read.csv(paste0(outputDir, "event_milk_type.csv"))
-season_milk_type <- read.csv(paste0(outputDir, "season_milk_type.csv"))
+event_milk_type <- read.csv(paste0(fileDir, "event_milk_type.csv"))
+season_milk_type <- read.csv(paste0(fileDir, "season_milk_type.csv"))
 names(event_milk_type)[1] <- "HerdDurableKey"
 names(season_milk_type)[1] <- "HerdDurableKey"
-herd_milk_type <- read.csv(paste0(outputDir, "herd_milk_type.csv"))
+herd_milk_type <- read.csv(paste0(fileDir, "herd_milk_type.csv"))
+all_milk_type <- read.csv(paste0(fileDir, "herd_season_testday_milk_type.csv"))
 
 ```
 
 
-## R Markdown
+## Milking type frequency at test day
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+For each Herd-Season-EventDate, define the milking type as 95% of the animals.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+* $>=$ 95% are OAD, define as OAD. Same for TAD.
+* If (5%, 95%) are TAD then define it as unknown. 
+* If (5%, 95%) are OAD define it as unknown.
 
-```{r cars}
-summary(cars)
+```{r}
+
+knitr::kable(data.frame(event_milk_type = c("OAD", "TAD", "unknown"),
+                        n = c(51835, 264979, 24101),
+                        prop = c(0.15, 0.777, 0.071)),
+             digits = 2, caption = "Before cleaning")
+
+knitr::kable(group_by(event_milk_type, event_milk_type) %>% 
+               tally() %>% 
+               mutate(prop = n/sum(n)), digits = 2, caption = "After cleaning")
+
 ```
 
-## Including Plots
+## Milking type frequency at each season
 
-You can also embed plots, for example:
+For herds that are not all OAD or all TAD in all test days:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+Use January 1st as the start of the 2nd season (June 1 to Dec 1 is the 1st season)
+
+* If all TAD before Jan 1st and all OAD after Jan 1st --> TAD, switch_type --> switch
+* If OAD happened before Jan 1st --> unclassified, switch_type --> unknown
+* If TAD happened after OAD --> unclassified, switch_type --> unknown
+* If unknown occurs before Jan 1st --> unclassified, switch --> unknown
+
+added later:
+
+* Mixed of TAD and unknown (after Jan 1st) --> TAD, switch --> unknown
+* Mixed of OAD and unknown (after Jan 1st) --> OAD, switch --> unknown
+
+```{r}
+
+knitr::kable(data.frame(season_milk_type = c("OAD", "TAD", "unclassified"),
+                        n = c(6436, 82939, 9678),
+                        prop = c(0.06497532, 0.83731941, 0.09770527)),
+             digits = 2, caption = "Before cleaning")
+
+knitr::kable(group_by(season_milk_type, season_milk_type, switch_type) %>% 
+               tally() %>% 
+               mutate(n/sum(n)), digits = 2, caption = "After cleaning")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Milking type by herds
+
+* All OAD across seasons --> OAD, same for TAD
+* TAD to OAD --> transition
+* TAD after OAD --> illegal, delete this herd
+* If there is an unclassified, consider it as a gap year --> illegal,
+delete this herd
+
+```{r}
+knitr::kable(data.frame(herd_milk_type = c("OAD", "TAD", "Transition", "illegal"),
+                        n = c(530, 9274, 339, 413)) %>% 
+               mutate(prop = n/sum(n)),
+             digits = 2, caption = "Before cleaning")
+
+knitr::kable(group_by(herd_milk_type, herd_milk_type) %>% 
+               tally() %>% 
+               mutate(n/sum(n)), digits = 2, caption = "After cleaning")
+
+```
+
+## combined together
+
+```{r}
+group_by(all_milk_type, herd_milk_type, season_milk_type, switch_type,
+         event_milk_type) %>% 
+  tally() %>% 
+  mutate(prop = n/sum(n)) %>% 
+  knitr::kable(digits = 2)
+
+```
+
+```{r, eval = F}
+rmarkdown::render(output_dir = outputDir, 
+                  input = rstudioapi::getSourceEditorContext()$path)
+```

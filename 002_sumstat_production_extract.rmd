@@ -163,18 +163,15 @@ gghistogram(sumstat_ageparity_herd_2007,
 
 ## milk_type (OAD, TAD, TRANSITION), herd percent OAD distribution
 
-The number of TAD and TRANS herds is way smaller than the number of OAD herds,
-possibly due to the aggressive cleaning. Nonetheless, the count is still high,
-so we have enough data point to analyse.
-
 ```{r}
-milk_type_herd <- select(df_new, HerdDurableKey, event_date, year, milk_type) %>% 
+milk_type_herd <- select(df_new, HerdDurableKey, event_date, year, 
+                         herd_milk_type) %>% 
   distinct()
 # which(duplicated(milk_type_herd[1:2,])) %>% length() # sanity check
 
-milk_type_herd <- select(df_new, HerdDurableKey, milk_type) %>% distinct()
+milk_type_herd <- select(df_new, HerdDurableKey, herd_milk_type) %>% distinct()
 # length(unique(milk_type_herd$HerdDurableKey))==nrow(milk_type_herd) # sanity check
-sumstat_milk_type_herd <- group_by(milk_type_herd, milk_type) %>% 
+sumstat_milk_type_herd <- group_by(milk_type_herd, herd_milk_type) %>% 
   tally() %>% mutate(prop = round(n/sum(n), digits = 2))
 
 print(sumstat_milk_type_herd)
@@ -184,11 +181,16 @@ print(sumstat_milk_type_herd)
 ## Transition year distribution
 
 ```{r}
-transition_year <- select(df_new, HerdDurableKey, transition_year, milk_type) %>% 
+transition_year <- select(df_new, HerdDurableKey, transition_year, 
+                          herd_milk_type) %>% 
   distinct() %>% 
-  filter(milk_type == "TRANS")
+  filter(herd_milk_type == "Transition")
 
 gghistogram(transition_year, "transition_year", binwidth = 1, fill = "steelblue",
             title = paste0("Transition year distribution among ", 
                            nrow(transition_year), " herds"))
+```
+```{r, eval = F}
+rmarkdown::render(output_dir = outputDir, 
+                  input = rstudioapi::getSourceEditorContext()$path)
 ```
