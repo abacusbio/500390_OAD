@@ -41,7 +41,7 @@ if(!exists(outputDir)) {
 df_new <- readRDS(paste0(fileDir, 
                          "production_after2006_noTransferHerd_noGapYearHerd_",
                          "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
-                         "noBackToTADHerd.RData"))
+                         "noBackToTADHerd_noOldAnimal.RData"))
 event_milk_type <- read.csv(paste0(fileDir, "event_milk_type.csv"))
 season_milk_type <- read.csv(paste0(fileDir, "season_milk_type.csv"))
 names(event_milk_type)[1] <- "HerdDurableKey"

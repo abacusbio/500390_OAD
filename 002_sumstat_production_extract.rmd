@@ -43,7 +43,7 @@ if(!exists(outputDir)) {
 df_new <- readRDS(paste0(fileDir, 
                          "production_after2006_noTransferHerd_noGapYearHerd_",
                          "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
-                         "noBackToTADHerd.RData"))
+                         "noBackToTADHerd_noOldAnimal.RData"))
 ```
 
 ```{r, eval = F}
@@ -87,19 +87,21 @@ ggbarplot(cross_cow_year_season, "year_season", "n",
 Across herds and animals number of herd tests
 ```{r}
 # within herd n herd tests
-n_herd_tests <- group_by(df_new, HerdDurableKey, AnimalDurableCode) %>% 
+n_herd_tests <- group_by(df_new, HerdDurableKey, AnimalDurableCode,
+                         DairyYear) %>% 
   tally()
 
 sumstat_n_tests <- group_by(n_herd_tests, HerdDurableKey) %>% 
   summarise(mean = mean(n), median = median(n), min = min(n), max = max(n)) %>% 
   pivot_longer(-HerdDurableKey, names_to = "statistics", values_to = "value")
 
-group_by(df_new, AnimalDurableCode) %>%
+group_by(df_new, AnimalDurableCode, DairyYear) %>%
   tally() %>%
   gghistogram(x = "n", binwidth = 1, add = "mean", fill = "steelblue",
-              title = paste0("Numer of herd tests per cow, ", 
+              title = paste0("Numer of herd tests/cow/season, ", 
                              length(unique(df_new$AnimalDurableCode)), 
-                             " total cows"))
+                             " total cows and ", 
+                             length(unique(df_new$DairyYear)), " seasons"))
 ```
 
 Within herds number of herd tests
@@ -107,8 +109,9 @@ Within herds number of herd tests
 ```{r}
 gghistogram(sumstat_n_tests, x = "value", facet.by = "statistics", rug = T,
             add = "mean", binwidth = 1, fill = "steelblue",
-            title = paste0("Number of herd tests per cow in each herd, ", 
-                           nrow(sumstat_n_tests)/4, " total herds"))
+            title = paste0("Number of herd tests/cow/season in each herd, ", 
+                           nrow(sumstat_n_tests)/4, " total herds")) %>% 
+  ggpar(xlim = c(0, 25))
 
 ```
 
@@ -117,13 +120,11 @@ gghistogram(sumstat_n_tests, x = "value", facet.by = "statistics", rug = T,
 Across herds and animal
 ```{r pressure}
 # ageparity distr across herd vs herd mean distr
-min_year <- min(df_new$year)
-max_year <- max(df_new$year)
+min_year <- min(df_new$DairyYear)
+max_year <- max(df_new$DairyYear)
 
 # 2007 SEASON 0 and 2006 season 1 are the same season
-test <- filter(df_new, year==min_year & Season == 1)
-season_2007 <- filter(df_new, year==min_year+1 & Season==0)
-season_2007 <- rbind(test, season_2007) # contains multiple tests of one cow
+season_2007 <- filter(df_new, DairyYear==max_year)
 
 # Find the index of 1st occurrence of each animal ID
 a <- data.frame(table(season_2007$AnimalDurableCode))
@@ -147,7 +148,10 @@ sumstat_ageparity_herd_2007 <- group_by(season_2007, HerdDurableKey) %>%
   pivot_longer(-HerdDurableKey, names_to = "statistics", values_to = "value")
 
 summarise(season_2007, mean = mean(AgeParity), median = median(AgeParity),
-            min = min(AgeParity), max = max(AgeParity))
+            min = min(AgeParity), max = max(AgeParity)) %>% 
+  knitr::kable(caption = paste0("season ", max_year, " herd"))
+
+
 ```
 
 Within herds
@@ -156,7 +160,7 @@ Within herds
 gghistogram(sumstat_ageparity_herd_2007, 
             x = "value", facet.by = "statistics", rug = T,
             add = "mean", binwidth = 1,  fill = "steelblue",
-            title = paste0("AgeParity of the last herd test in 2007, ", 
+            title = paste0("AgeParity of the last herd test in ", max_year, " , ", 
                            nrow(sumstat_ageparity_herd_2007)/4, " total herds"))
 
 ```

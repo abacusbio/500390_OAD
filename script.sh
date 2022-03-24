@@ -38,8 +38,8 @@ awk '{ if ($10 < 2007) print }' tmp |wc -l # saniy check
 awk '{print $10}' tmp | sort -u # sanity check
 head tmp # sanity check
 tail tmp # sanity check
-wc -l tmp # 107910530 
-awk '{ if ($10 < 2007) { print } }' productionextract_orignal |wc -l # 6335115
+wc -l tmp # 120565069 
+awk '{ if ($10 < 2007) { print } }' productionextract_original |wc -l # 127563680
 awk '{ if ($10="") { print } }' productionextract_original |wc -l # 0
 # sed 's/\t/ /g' tmp
 mv tmp productionextract
@@ -51,7 +51,6 @@ mv tmp productionextract
 # d - daysfrombirthtoparturition
 # test day, birth-to-par, par-to-test, new date, birthday
 ##awk -F' ' '(NR>1){ ("date +%Y%m%d -d" $4 "-" $2 "days" |getline d); print $1, $2, $3, $4, d}' test >tmp
-
 
 ###-- R computing in between --###
 
@@ -65,3 +64,7 @@ sort -c tmp # sanity check
 cat header tmp > animal_herd_eventDate_herd_sorted
 # sed 's/ /,/g' tmp > animal_eventDate_herd_sorted
 
+# unzip files
+cd /e/OAD\ Dairy\ Data/2022021110_EBVs/
+cd ?
+for i in `ls *.bz2`; do bzip2 -d $i; done # -dk if wants to preserve the .bz2 files

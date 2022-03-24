@@ -42,7 +42,7 @@ mclapply.hack <- function(mc.cores = 24, l_env =NULL, ...) {
 cat("1\n")
     l <- ls(all.names = T, env = globalenv()) # lzhang 27Feb2022 takes long time if big data in memeory
     if(!is.null(l_env)) {
-      l <- c(l_env, "this.env", ".Random.seed")
+      l <- c(l_env, ".Random.seed")
     }
     clusterExport(cl,
                   l, # ls(all.names=TRUE, env=globalenv()), # lzhang 27Feb2022

@@ -6,7 +6,7 @@ library(tidyverse)
 source("utils.R")
 
 fileDir <- "e:/500390_OAD/explore/" # "z:/Luna/500390_OAD/explore/"
-rawfileDir <- "z:/Luna/500390_OAD/OAD Dairy Data/"
+rawfileDir <- "e:/OAD Dairy Data/"
 outputDir <- "e:/500390_OAD/output/" # copy to "z:/Luna/500390_OAD/output/" later
 
 # if(!exists(outputDir)) dir.create(outputDir)
@@ -47,65 +47,53 @@ df <- df %>%
 ##--delete herd with gap year(s)--##
 
 df <- df %>% mutate(year = year(event_date))
-df_split <- split(df, df$HerdDurableKey)
-length(df_split) #  18956 herds
+df_split <- split(df, df$HerdDurableKey) # not sorted yet
+length(df_split) #  17950 herds
 
-t <- Sys.time()
-a <- data.frame(table(df$HerdDurableKey))
-a$var <- as.character(a$Var1)
-all(a$var==unique(df$HerdDurableKey)) # sanity check
-a <- a[match(unique(df$HerdDurableKey), a$var),]
-all(a$var==unique(df$HerdDurableKey)) # sanity check
-a$idx <- cumsum(a$Freq)-a$Freq + 1
-idx <- a$idx
-idx <- c(idx, nrow(df)+1) # for the last set of animal IDs◘
-a <- NULL
-print(Sys.time()-t) # 37 sec
-
-test <- lapply(head(seq(idx), -1), function(i) { # check proportion of problematic herds
+test <- lapply(df_split, function(df_sub) { # check proportion of problematic herds
   # gap <- unique(df_sub$year) %>% sort() %>% diff()
-  return(any(as.integer(unique(
-    df$year[idx[i]:(idx[i+1]-1)]) %>% sort() %>% diff()) > 1))
+  return(any(
+    df_sub$DairyYear %>% unique() %>% sort() %>% diff() > 1))
 })
 table(unlist(test)) 
 # FALSE  TRUE 
-# 14892  3058 
+# 13892  4058 
 table(unlist(test))/length(test)
 # FALSE      TRUE 
-# 0.8330344 0.1669656 
+# 0.7739276 0.2260724
 
 t <- Sys.time()
 # test <- mclapply(mc.cores = getMKLthreads()/2, l_env = c("idx", "df"),
 test <- lapply(
-  head(seq(idx), -1), function(i) {
+  df_split, function(df_sub) {
   # gap <- unique(df_sub$year) %>% sort() %>% diff()
-  if(any(as.integer(unique(df$year[idx[i]:(idx[i+1]-1)]) %>% sort() %>% diff()) > 1)) {
+  if(any(df_sub$DairyYear %>% unique() %>% sort() %>% diff() > 1)) {
     return(NULL)
   } else {
-    return(df[idx[i]:(idx[i+1]-1),,drop = F] %>% 
+    return(df_sub %>% 
              arrange(AnimalDurableCode, event_date)) # very long
   }
 })
 print(Sys.time()-t) # lapply 9.3min mclapply
 
 df_new <- do.call(rbind, test)
-nrow(df_new) #  98,042,613  events
-unique(df_new$HerdDurableKey) %>% length() # 14892
-unique(df_new$AnimalDurableCode) %>% length() # 10916754
+nrow(df_new) #  88342185  events
+unique(df_new$HerdDurableKey) %>% length() # 13892
+unique(df_new$AnimalDurableCode) %>% length() # 9886185
 
 rm(list=ls(pattern = "df_split|df$|test"))
-# saveRDS(df_new, paste0(outputDir, "production_after2006_noTransferHerd.RData")) # long time
+saveRDS(df_new, paste0(outputDir, "production_after2006_noTransferHerd.RData")) # long time
 
 ##--delete animals moved around herds--##
 
 # df_new <- readRDS(paste0(outputDir, "productionextract_after2006_noTransferHerd.RData"))
 test <- dplyr::select(df_new, AnimalDurableCode, HerdDurableKey, event_date)
-write_excel_csv2(test, paste0(outputDir, "animal_herd_eventDate.csv"), 
-                 delim = ",", quote_escape = F) # 14 min to write
+# write_excel_csv2(test, paste0(outputDir, "animal_herd_eventDate.csv"), 
+                 # delim = ",", quote_escape = F) # 14 min to write
 
-t <- Sys.time()
-test <- arrange(test, AnimalDurableCode, event_date) # takes forever
-print(Sys.time()-t)
+# t <- Sys.time()
+# test <- arrange(test, AnimalDurableCode, event_date) # takes forever
+# print(Sys.time()-t)
 # alternatively run "sort -k1,1 -k3,3 animal_herd_eventDate.csv > tmp" in git.bash
 # test <- read.csv("e:/500390_OAD/explore/animal_eventDate_herd_sorted")
 
@@ -113,29 +101,28 @@ animal_herd_date <- test
 test <- animal_herd_date[, .(AnimalDurableCode, HerdDurableKey)]
 test <- unique(test)
 
-length(unique(test$AnimalDurableCode)) # 10916754 animals
+length(unique(test$AnimalDurableCode)) # 9886185 animals
 a <- which(duplicated(test$AnimalDurableCode))
 dup_id <- unique(test$AnimalDurableCode[a])
-length(dup_id) # 1607473 animals transferred herd
+length(dup_id) # 1407398 animals transferred herd
 a <- NULL
 
-n <- nrow(df_new) # 98042613
+n <- nrow(df_new) # 88342185
 test <- df_new[!AnimalDurableCode %in% dup_id]
-nrow(test) # 78147117 events
-n <- NULL
-unique(test$HerdDurableKey) %>% length() # 14866 herds
-unique(test$AnimalDurableCode) %>% length() # 9309281 animals
+nrow(test) # 70842190♣ events
+unique(test$HerdDurableKey) %>% length() # 13869 herds
+unique(test$AnimalDurableCode) %>% length() # 8478787 animals
 
 df_new <- test
 t <- Sys.time()
 saveRDS(df_new, paste0(outputDir, "production_after2006_noTransferHerd_noGapYear.RData"))
 print(Sys.time()-t) # 3.5 min
 
-animal_herd_date <- animal_herd_date[!AnimalDurableCode %in% dup_id]
-t <- Sys.time()
-write_excel_csv2(animal_herd_date, paste0(outputDir, "animal_herd_eventDate.csv"), 
-                 delim = ",", quote_escape = F) # 14 min to write
-print(Sys.time()-t) # 5.4 min
+# animal_herd_date <- animal_herd_date[!AnimalDurableCode %in% dup_id]
+# t <- Sys.time()
+# write_excel_csv2(animal_herd_date, paste0(outputDir, "animal_herd_eventDate.csv"), 
+#                  delim = ",", quote_escape = F) # 14 min to write
+# print(Sys.time()-t) # 5.4 min
 rm(list=ls(pattern = "animal_herd|test|dup_id"))
 
 ##---delete animals having gap years--##
@@ -143,9 +130,10 @@ rm(list=ls(pattern = "animal_herd|test|dup_id"))
 # df_new <- readRDS(paste0(outputDir, "production_after2006_noTransferHerd_noGapYear.RData"))
 
 # Find the index of 1st occurrence of each animal ID
-test <- df_new[, .(AnimalDurableCode, year)]
+test <- df_new[, .(AnimalDurableCode, DairyYear)]
 test <- unique(test)
 
+t <- Sys.time()
 a <- data.frame(table(test$AnimalDurableCode))
 a$var <- as.character(a$Var1)
 all(a$var==unique(test$AnimalDurableCode)) # sanity check
@@ -156,13 +144,12 @@ idx <- a$idx
 idx <- c(idx, nrow(test)+1) # for the last set of animal IDs◘
 a <- NULL
 
-t <- Sys.time()
 # good_ids <- mclapply(mc.cores = getMKLthreads()/2, l_env = c("idx", "test"),
 good_ids <- lapply(
                      head(seq(idx), -1), function(i) {
   if(idx[1]==idx[i+1]-1) { # animals only have one record
     return(test$AnimalDurableCode[idx[i]])
-  } else if(any(diff(test$year[idx[i]:(idx[i+1]-1)]) > 1)) { # avoid assignments!
+  } else if(any(diff(test$DairyYear[idx[i]:(idx[i+1]-1)]) > 1)) { # avoid assignments!
     return(NULL)
   } else {
     return(test$AnimalDurableCode[idx[i]])
@@ -171,13 +158,14 @@ good_ids <- lapply(
 print(Sys.time()-t) # lapply 2.25 min, mclapply 4.7min
 
 good_ids <- unlist(good_ids)
-length(good_ids) # 9169271 animals do not have gap years
-length(unique(test$AnimalDurableCode)) # 9732920
+length(good_ids) # 8006245 animals do not have gap years
+length(unique(test$AnimalDurableCode)) # 8478787
 
 test <- df_new[AnimalDurableCode %in% good_ids]
-nrow(test) # 76998137 cleaned events
+nrow(test) # 65602074 cleaned events
 df_new <- test
-unique(df_new$HerdDurableKey) %>% length() # 14866
+unique(df_new$HerdDurableKey) %>% length() # 13869
+unique(df_new$AnimalDurableCode) %>% length() #  8,006,245 
 saveRDS(df_new, paste0(outputDir, "production_after2006_noTransferHerd_noGapYearHerd_noGapYearAnim.RData"))
 rm(list = ls(pattern = "good_ids|idx|test"))
 
@@ -195,20 +183,22 @@ rm(list = ls(pattern = "good_ids|idx|test"))
 #--The output will be Herd, Season, EventDate, milking_type-#
 
 #  df_new <- readRDS(paste0(outputDir, "production_after2006_noTransferHerd_noGapYearHerd_noGapYearAnim.RData"))
-test <- df_new[, .(HerdDurableKey, event_date, AnimalDurableCode, RegimeType)]
-test <- arrange(test, HerdDurableKey, event_date)
+test <- df_new[, .(HerdDurableKey, EventDate, event_date, AnimalDurableCode,
+                   RegimeType)]
+test <- arrange(test, HerdDurableKey, EventDate)
 
 # saniy check duplicated animal IDs
-which(duplicated(test[,1:3]))
+# which(duplicated(test[,1:3]))
 table(df_new$RegimeType, useNA="always")/nrow(df_new) # OAD 16%
 # 1          2          3          4       <NA> 
-# 0.55360178 0.22776112 0.06231377 0.15632333 0.00000000 
+# 0.55341808 0.22561020 0.06186588 0.15910584 0.00000000 
 
-herd_event <- paste0(test$HerdDurableKey, "_", test$event_date) # long time
+herd_event <- paste0(test$HerdDurableKey, "_", test$EventDate) # long time
 test$herd_event <- herd_event
 rm(list = ls(pattern = "herd_event"))
 
 # Find the index of 1st occurrence of each herd ID
+t <- Sys.time()
 a <- data.frame(table(test$herd_event))
 a$var <- as.character(a$Var1)
 all(a$var==unique(test$herd_event)) # sanity check
@@ -229,7 +219,6 @@ a <- NULL
 # print(Sys.time()-t) # 2.34917 mins
 
 # run mclapply
-t <- Sys.time()
 milk_type <- # mclapply(mc.cores = getMKLthreads()/2, l_env = c("idx", "test"),
   lapply(
     head(seq(idx), -1), function(i) {
@@ -247,17 +236,17 @@ print(Sys.time()-t) # 2.8 sec
 milk_type <- unlist(milk_type)
 event_milk_type <- cbind(test[head(idx, -1), ], milk_type) %>% 
   select(HerdDurableKey, event_date, event_milk_type = milk_type) %>% 
-  mutate(year = year(event_date))  # 340915 herd-season-event
+  mutate(year = year(event_date))  # 309739 herd-season-event
 
 # sanity check
-sum(is.na(milk_type)) # 24101
+sum(is.na(milk_type)) # 21979
 sum(is.na(milk_type))/nrow(event_milk_type) # 0.07
 table(event_milk_type$event_milk_type, useNA = "ifany")
 # OAD    TAD   <NA> 
-# 51835 264979  24101 
+# 47611 240152  21976 
 table(event_milk_type$event_milk_type, useNA = "ifany")/nrow(event_milk_type)
 # OAD     TAD       <NA> 
-# 0.15   0.777        0.071 
+# 0.15   0.775        0.071 
 
 #--	Define Herd-Season's milking type.-----------------------------------------#
 #--Some Herd-Season only has the last test (EventDate) as OAD. It's OK to keep.#
@@ -291,6 +280,7 @@ event_milk_type$herd_season <- paste0(event_milk_type$HerdDurableKey, "_",
 write_excel_csv2(event_milk_type, paste0(outputDir, "event_milk_type.csv"),
                  delim = ",", quote_escape = "none")
 
+t <- Sys.time()
 # Find the index of 1st occurrence of each herd_season
 a <- data.frame(table(event_milk_type$herd_season))
 a$var <- as.character(a$Var1)
@@ -302,7 +292,6 @@ idx <- a$idx
 idx <- c(idx, nrow(event_milk_type)+1) # for the last set of animal IDs◘
 a <- NULL
 
-t <- Sys.time()
 milk_type <- lapply(head(seq(idx), -1), function(i) {
   # print(i)
   if(sum(is.na(event_milk_type$event_milk_type[idx[i]:(idx[i+1]-1)]))==0 &&
@@ -353,22 +342,22 @@ milk_type <- do.call(rbind, milk_type)
 colnames(milk_type) <- c("season_milk_type", "switch_type")
 
 season_milk_type <- data.frame(event_milk_type[head(idx, -1),], milk_type) %>% 
-  select(-event_date, -event_milk_type, -year) # 99053 herd-seasons
+  select(-event_date, -event_milk_type, -year) # 89964 herd-seasons
 
 # saniy check
 nrow(season_milk_type)==length(idx)-1
 table(season_milk_type$season_milk_type)
 # OAD          TAD unclassified 
-# 6436        82899         9718 
+# 5986        75170         8808
 table(season_milk_type$season_milk_type)/nrow(season_milk_type)
-# 0.06497532    0.83691559   0.09810909 
+#  0.06653773   0.83555644   0.09790583 
 table(season_milk_type$switch_type)
 # no      switch unknown 
-# 62874   19469   16710 
+# 56988   17808   15168 
 filter(season_milk_type, switch_type=="unknown" & 
-         season_milk_type=="TAD") %>% nrow() # 6992
+         season_milk_type=="TAD") %>% nrow() # 6360
 filter(season_milk_type, switch_type=="no" & 
-         season_milk_type=="OAD") %>% nrow() # 6436
+         season_milk_type=="OAD") %>% nrow() # 5986
 filter(season_milk_type, switch_type=="switch") %>% head()
 test <- filter(season_milk_type, switch_type=="unknown" & 
                  season_milk_type=="TAD") 
@@ -389,12 +378,12 @@ write_excel_csv2(season_milk_type, paste0(outputDir, "season_milk_type.csv"),
 # find gap season and remove the herds
 which(duplicated(season_milk_type[,1:2])) # sanity check
 dup_ids <- filter(season_milk_type, season_milk_type=="unclassified") %>% 
-  select(HerdDurableKey) %>% unlist() %>% unique() # 4320 herds
+  select(HerdDurableKey) %>% unlist() %>% unique() # 3925 herds
 
 df_new <- filter(df_new, !HerdDurableKey %in% dup_ids)
-nrow(df_new) # 40114511
-unique(df_new$HerdDurableKey) %>% length() # 10546
-unique(df_new$AnimalDurableCode) %>% length() # 5021662
+nrow(df_new) # 34442119
+unique(df_new$HerdDurableKey) %>% length() # 9944
+unique(df_new$AnimalDurableCode) %>% length() # 4457465
 saveRDS(df_new, paste0(outputDir,
                        "production_after2006_noTransferHerd_noGapYearHerd_noGapYearAnim_noUnclassifiedSeasonMilkingType.RData"))
 
@@ -454,16 +443,16 @@ names(milk_type) <- c("herd_milk_type", "transition_year")
 milk_type$transition_year <- as.integer(milk_type$transition_year)
 
 herd_milk_type <- cbind(season_milk_type[head(idx, -1),], milk_type) %>% 
-  select(HerdDurableKey, herd_milk_type, transition_year) # 10546 herd
+  select(HerdDurableKey, herd_milk_type, transition_year) # 9944 herd
 
 # sanity check
 table(herd_milk_type$herd_milk_type, useNA = "always")
 # OAD        TAD Transition       <NA> 
-# 530       9267        292         457 
+# 524       8723        283        414 
 table(herd_milk_type$herd_milk_type, useNA = "always")/nrow(herd_milk_type)
 # OAD               TAD Transition  <NA> 
-# 0.05025602 0.87872179 0.02768822 0.04333397 
-which(is.na(herd_milk_type$herd_milk_type)) %>% length() # 457 back to TAD herds
+# 0.05269509 0.87721239 0.02845937 0.04163315 
+which(is.na(herd_milk_type$herd_milk_type)) %>% length() # 414 back to TAD herds
 which(duplicated(herd_milk_type$HerdDurableKey)) %>% length()
 
 # remove back to TAD herds
@@ -472,9 +461,9 @@ write.csv(herd_milk_type, paste0(outputDir, "herd_milk_type.csv"),
           row.names = F, quote = F)
 
 df_new <- filter(df_new, HerdDurableKey %in% herd_milk_type$HerdDurableKey)
-nrow(df_new) # 38098619
-unique(df_new$HerdDurableKey) %>% length() # 10089
-unique(df_new$AnimalDurableCode) %>% length() # 4731070
+nrow(df_new) # 32726616
+unique(df_new$HerdDurableKey) %>% length() # 9530
+unique(df_new$AnimalDurableCode) %>% length() # 4202639
 
 df_new <- left_join(df_new, herd_milk_type)
 
@@ -509,6 +498,35 @@ write.csv(removed_herd_milk_type,
 
 ##----remove cows in OAD herds entered before 2007-2008 season---##
 ##--2007 June 1st--##
-idx <- which(df$event_date < as.Date("20070601", "%Y%m%d"))
 
+rm(list=ls(pattern = "milk|test|unclassif"))
+# df_new <- readRDS(paste0(outputDir,
+# "production_after2006_noTransferHerd_noGapYearHerd_",
+# "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
+# "noBackToTADHerd.RData"))
+df <- fread(paste0(fileDir, "productionextract_original"), sep = " ")
+idx <- which(df$EventDate < 20070601)
+old_ids <- df$AnimalDurableCode[idx] %>% unique()
 
+# sanity check
+length(idx) # 127418367
+length(idx)/nrow(df) # 0.51
+t <- which(old_ids %in% df_new$AnimalDurableCode) %>% length() # 743071
+n <- unique(df_new$AnimalDurableCode) %>% length() # 4731070
+t/n # 0.157
+
+df_new <- filter(df_new, !AnimalDurableCode %in% old_ids)
+nrow(df_new) # 28199280
+unique(df_new$HerdDurableKey) %>% length() # 9490
+unique(df_new$AnimalDurableCode) %>% length() # 3517764
+
+saveRDS(df_new, paste0(outputDir,
+                       "production_after2006_noTransferHerd_noGapYearHerd_",
+                       "noGapYearAnim_noUnclassifiedSeasonMilkingType_",
+                       "noBackToTADHerd_noOldAnimal.RData"))
+
+animal_herd <- dplyr::select(df_new, AnimalDurableCode, 
+                                   HerdDurableKey) %>% 
+  distinct()
+write.csv(animal_herd, paste0(outputDir, "animal_herd.csv"),
+          quote = F, row.names = F)
