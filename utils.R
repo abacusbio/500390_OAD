@@ -88,3 +88,19 @@ mclapply <- switch( Sys.info()[['sysname']],
                     Darwin  = {mclapply})
 
 ## end mclapply.hack.R
+
+#' A script to print significiant digits in R markdown output
+inline_hook <- function (x) { #, digits = 2) {
+  if (is.numeric(x)) {
+    # ifelse does a vectorized comparison
+    # If integer, print without decimal; otherwise print two places
+    res <- ifelse(x == round(x),
+                  sprintf("%d", x),
+                  signif(x, 2) #sprintf(paste0("%.", digits, "f"), x)
+    )
+    paste(res, collapse = ", ")
+  }
+}
+
+knitr::knit_hooks$set(inline = inline_hook)
+knitr::knit_hooks$get("inline")

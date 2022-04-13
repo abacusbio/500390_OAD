@@ -44,3 +44,27 @@ df_new <- left_join(production, ebvs) %>%
 rm(list = ls(pattern = "animals|production|ebvs"))
 saveRDS(df_new, paste0(outputDir, 
                      "production_survival_noYoungAnimal_ebv.RData"))
+
+# figure out transition parity #
+# df_new <- readRDS(paste0(outputDir, "production_survival_noYoungAnimal_ebv.RData"))
+df_sub <- filter(df_new, herd_milk_type=="Transition" 
+                 & DairyYear==transition_year) %>% 
+  select(AnimalDurableCode, HerdDurableKey, AgeParity, 
+         event_date, DairyYear, transition_year)
+
+# sanity check
+test <- group_by(df_sub, AnimalDurableCode, AgeParity) %>% 
+  tally() # check if there's multiple AgeParity of the same transition year
+which(duplicated(test$AnimalDurableCode)) # 0
+
+df_sub <- select(df_sub, AnimalDurableCode, HerdDurableKey, AgeParity, 
+                 transition_year) %>% 
+  distinct()
+df_sub$transition_parity <- paste0("s", df_sub$AgeParity-2, df_sub$AgeParity-1)
+df_sub$transition_parity[df_sub$AgeParity<3] <- "too_early"
+df_sub$transition_parity[df_sub$AgeParity>6] <- "too_late"
+
+df_new <- left_join(df_new, select(df_sub, AnimalDurableCode, HerdDurableKey,
+                                   transition_parity))
+saveRDS(df_new, paste0(outputDir, 
+                       "production_survival_noYoungAnimal_ebv.RData"))
