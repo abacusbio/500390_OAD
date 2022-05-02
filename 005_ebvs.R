@@ -26,7 +26,7 @@ ebvs <- lapply(seq(dirs), function(i) {
 print(trait)
   test <-fread(
     paste0(rawfileDir, dirs[i], "/",
-           dir(paste0(rawfileDir, dirs[i], "/"), pattern = "Animal")), 
+           dir(paste0(rawfileDir, dirs[i], "/"), pattern = "AnimalResults$")), 
     sep = ",", select = c("AnimalDurableCode", "EBV")) %>% # no missing data
     filter(AnimalDurableCode %in% animals$AnimalDurableCode)
   
@@ -42,13 +42,14 @@ test <- NULL
 df_new <- left_join(production, ebvs) %>% 
   select(-year)
 rm(list = ls(pattern = "animals|production|ebvs"))
-saveRDS(df_new, paste0(outputDir, 
-                     "production_survival_noYoungAnimal_ebv.RData"))
+# saveRDS(df_new, paste0(outputDir, 
+                     # "production_survival_noYoungAnimal_ebv.RData"))
 
 # figure out transition parity #
 # df_new <- readRDS(paste0(outputDir, "production_survival_noYoungAnimal_ebv.RData"))
 df_sub <- filter(df_new, herd_milk_type=="Transition" 
-                 & DairyYear==transition_year) %>% 
+                 & DairyYear==transition_year) %>% # some cows do not have this year.
+  # either died before, or too old?
   select(AnimalDurableCode, HerdDurableKey, AgeParity, 
          event_date, DairyYear, transition_year)
 
@@ -66,5 +67,17 @@ df_sub$transition_parity[df_sub$AgeParity>6] <- "too_late"
 
 df_new <- left_join(df_new, select(df_sub, AnimalDurableCode, HerdDurableKey,
                                    transition_parity))
+
+df_new$new_milk_type <- paste0(df_new$herd_milk_type, df_new$transition_parity)
+df_new$new_milk_type <- gsub("NA", "", df_new$new_milk_type)
+unique(df_new$new_milk_type) # sanity check
+df_new$new_milk_type[df_new$new_milk_type=="Transition"] <- NA # DOESN'T HAVE DAIRYYEAR==TRANSITINO_YEAR
+
 saveRDS(df_new, paste0(outputDir, 
                        "production_survival_noYoungAnimal_ebv.RData"))
+
+df_new <- filter(df_new, !transition_parity %in% c("too_late", "too_early"))
+saveRDS(df_new, paste0(outputDir, 
+                       "production_survival_noYoungAnimal_ebv_beforeParity5.RData"))
+
+

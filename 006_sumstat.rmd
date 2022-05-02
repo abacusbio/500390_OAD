@@ -151,6 +151,7 @@ write.csv(longer, paste0(outputDir, "EBV_in_survival_milk_type.csv"),
 
 ```
 
+# EBV distribution within herd_milk_type
 
 
 ```{r, eval = F}

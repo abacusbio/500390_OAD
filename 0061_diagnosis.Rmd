@@ -1,0 +1,202 @@
+---
+title: "Diagnosis"
+author: "Luna ZHnag"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F,
+                      root.dir = "e:/500390_OAD/output/sumstat_production/" )
+```
+
+
+```{r, include=F}
+# Luna Zhang Feb 28 2022
+
+# library(data.table)
+suppressWarnings({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(ggpubr)
+})
+
+# source("utils.R")
+
+fileDir <- "e:/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
+rawfileDir <- "z:/Luna/500390_OAD/OAD Dairy Data/"
+outputDir <- "C:/Users/lzhang/Documents/GitHub/500390_OAD/output/" 
+
+if(!exists(outputDir)) {
+  dir.create(outputDir)
+}
+# stop()
+```
+
+```{r, include = F}
+full_df <- readRDS(paste0(fileDir,
+                          "production_survival_noYoungAnimal_gebv_beforeParity5.RData"))
+```
+
+```{r, eval = F}
+names(full_df)
+#  [1] "AnimalDurableCode"             "DaysFromBirthToParturition"    "DaysFromParturitionToHerdTest"
+#  [4] "InducedParturitionFlag"        "Volume_ml"                     "FatVolume_ml"                 
+#  [7] "ProteinVolume_ml"              "AgeParity"                     "HerdDurableKey"               
+# [10] "DairyYear"                     "Season"                        "EventDate"                    
+# [13] "AgeParityGroup"                "RegimeType"                    "event_date"                   
+# [16] "herd_milk_type"                "transition_year"               "s12"                          
+# [19] "s23"                           "s34"                           "s45"                          
+# [22] "EBV_BodyConditionScore"        "EBV_Fertility_CR42"            "EBV_Fertility_CSD0"           
+# [25] "EBV_Fertility_CSD123"          "EBV_Fertility_PM123"           "EBV_FunctionalSurvival"       
+# [28] "EBV_IndirectSurvival"          "EBV_SomaticCellScore"          "EBV_Survival"                 
+# [31] "EBV_TOP_AdaptabilityToMilking" "EBV_TOP_Capacity"              "EBV_TOP_DairyConformation"    
+# [34] "EBV_TOP_ForeUdder"             "EBV_TOP_FrontTeat"             "EBV_TOP_Legs"                 
+# [37] "EBV_TOP_MilkingSpeed"          "EBV_TOP_OverallOpinion"        "EBV_TOP_RearTeat"             
+# [40] "EBV_TOP_RearUdder"             "EBV_TOP_RumpAngle"             "EBV_TOP_RumpWidth"            
+# [43] "EBV_TOP_ShedTemperament"       "EBV_TOP_Stature"               "EBV_TOP_TeatLength"           
+# [46] "EBV_TOP_UdderOverall"          "EBV_TOP_UdderSupport"          "EBV_TotalFat"                 
+# [49] "EBV_TotalProtein"              "EBV_TotalVolume"               "transition_parity"            
+# [52] "EBV_Liveweight"                "GBV_TotalFat"                  "GBV_TotalProtein"             
+# [55] "GBV_TotalVolume"               "GBV_Liveweight"                "GBV_SomaticCellScore"         
+# [58] "GBV_Fertility_CR42"            "GBV_BodyConditionScore"        "GBV_FunctionalSurvival"       
+# [61] "GBV_TOP_AdaptabilityToMilking" "GBV_TOP_ShedTemperament"       "GBV_TOP_MilkingSpeed"         
+# [64] "GBV_TOP_OverallOpinion"        "GBV_TOP_Stature"               "GBV_TOP_Capacity"             
+# [67] "GBV_TOP_RumpAngle"             "GBV_TOP_RumpWidth"             "GBV_TOP_Legs"                 
+# [70] "GBV_TOP_UdderSupport"          "GBV_TOP_ForeUdder"             "GBV_TOP_RearUdder"            
+# [73] "GBV_TOP_FrontTeat"             "GBV_TOP_RearTeat"              "GBV_TOP_TeatLength"           
+# [76] "GBV_TOP_UdderOverall"          "GBV_TOP_DairyConformation"     "PctHolstein"
+```
+
+## Herd size distribution
+
+```{r herd size diagnosis}
+herd_size <- full_df %>% filter(DairyYear == max(full_df$DairyYear)) %>% 
+  group_by(herd_milk_type, HerdDurableKey) %>% 
+  tally()
+
+ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
+  summarise(min = min(n), mean = mean(n), sd = sd(n), max = max(n)) %>% 
+  knitr::kable(digits = 0, caption = "Herd size by herd milking type") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+ggplot(herd_size, aes(n)) +
+  geom_histogram(bins = 100) +
+  # geom_vline(aes(xintercept = mean(n)), color = "red") +
+  # geom_vline(aes(xintercept = mean(n)+2*sd(n)), color = "blue") +
+  facet_grid(herd_milk_type~., scale = "free_y") + 
+  labs(title = "Herd size")
+
+ggplot(herd_size, aes(n, fill = herd_milk_type)) +
+  geom_boxplot() +
+  labs(title = "Herd size")
+  
+```
+
+## Holstein percentage distribution
+
+```{r holstein perc}
+holstein_pct <- full_df %>% 
+  select(HerdDurableKey, AnimalDurableCode, PctHolstein, herd_milk_type) %>% 
+  distinct() %>% 
+  group_by(herd_milk_type, HerdDurableKey) %>% 
+  summarise(#min = min(PctHolstein), mean = mean(PctHolstein),
+            mean_pct = mean(PctHolstein)#, max = max(PctHolstein), 
+           # sd = sd(PctHolstein)
+           )
+
+ungroup(holstein_pct) %>% group_by(herd_milk_type) %>% 
+  summarise(min = min(mean_pct), mean = mean(mean_pct), sd = sd(mean_pct),
+            max = max(mean_pct)) %>% 
+  knitr::kable(digits = 2, 
+               caption = "Mean herd Holstein percentage by herd milking type") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+ggplot(holstein_pct, aes(mean_pct)) +
+  geom_histogram(bins = 100) +
+  facet_grid(herd_milk_type~., scale = "free_y") +
+  # geom_vline(aes(xintercept = mean(mean)), color = "red") +
+  # geom_vline(aes(xintercept = mean(mean)+2*sd(mean)), color = "blue") +
+  labs(title = "Mean herd Holstein percentage")
+
+ggplot(holstein_pct, aes(mean_pct, fill = herd_milk_type)) +
+  geom_boxplot() +
+  labs(title = "Mean herd Holstein percentage")
+```
+
+## Milk volume distribution
+
+Cannot just extract Nov production because none of the months have records of
+all cows.
+
+```{r milk_volumn}
+test <- select(full_df, AnimalDurableCode, event_date) %>% 
+  mutate(mo = month(event_date))
+
+n_animal <- unique(test$AnimalDurableCode) %>% length()
+
+records <- data.frame(month = 1:12, n_cows = NA)
+for (i in 1:12) {
+  records$n_cows[i] <- filter(test, mo == i) %>% 
+    select(AnimalDurableCode) %>% distinct() %>% nrow()
+}
+records$pct <- records$n_cows/n_animal
+records %>% 
+  knitr::kable(format.args = list(big.mark = ","), digits = 2, 
+               caption = "N cows with milking records by month") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+```
+
+### check every month
+
+For each cow, get the mean volumn of all the herd tests in that month across
+all years, i.e. life time mean volumn by month.  
+Then get the distribution of the above for each herd.
+
+```{r}
+milk_vol <- select(full_df, HerdDurableKey, herd_milk_type, AnimalDurableCode,
+                   event_date, Volume_ml) %>% 
+  mutate(mo = month(event_date)) 
+
+test <- lapply(1:12, function(i) {
+  out <- milk_vol %>% 
+    filter(mo == i) %>% # can have records of the same mo in multiple years
+    group_by(herd_milk_type, HerdDurableKey, AnimalDurableCode) %>% 
+    summarise(vol = mean(Volume_ml))
+  
+  out$month <- i
+  return(out)
+})
+
+milk_vol <- do.call(rbind, test)
+
+ungroup(milk_vol) %>% group_by(month, herd_milk_type) %>% 
+  summarise(min = min(vol), mean = mean(vol), sd = sd(vol),
+            max = max(vol)) %>% 
+  knitr::kable(format.args = list(big.mark = ","), digits = 0, 
+               caption = "Mean cow milk volumn by month and herd milking type") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+# ggplot(milk_vol, aes(vol)) +
+#   geom_density() +
+#   facet_grid(month~herd_milk_type, scale = "free_y") +
+#   # geom_vline(aes(xintercept = mean(mean)), color = "red") +
+#   # geom_vline(aes(xintercept = mean(mean)+2*sd(mean)), color = "blue") +
+#   labs(title = "Mean cow milk volumn")
+
+ggplot(milk_vol, aes(vol, fill = herd_milk_type)) +
+  geom_boxplot() + #orientation = ) +
+  facet_grid(month~., scales = "free_y") +
+  labs(title = "Mean cow milk volumn")
+
+```
+
+```{r output, eval = F}
+rmarkdown::render(output_dir = outputDir, 
+                  input = rstudioapi::getSourceEditorContext()$path)
+```
