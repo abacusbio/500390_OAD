@@ -1,0 +1,524 @@
+---
+title: "Summary statistics down sampled data"
+author: "Luna Zhang"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+   # theme: cosmo
+   # highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F, message = F,
+                      root.dir = "e:/500390_OAD/output/sumstat_production/" )
+```
+
+```{r, include=F}
+# Luna Zhang Feb 28 2022
+
+# library(data.table)
+suppressWarnings({
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(ggpubr)
+  library(tibble)
+})
+
+# source("utils.R")
+
+fileDir <- "e:/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
+rawfileDir <- "z:/Luna/500390_OAD/OAD Dairy Data/"
+outputDir <- "C:/Users/lzhang/Documents/GitHub/500390_OAD/output/"
+
+if(!exists(outputDir)) {
+  dir.create(outputDir)
+}
+# stop()
+```
+
+Read downsampled dataset
+
+```{r, include = F}
+# full_df <- readRDS(
+  # paste0(fileDir,
+         # "production_survival_noYoungAnimal_gebv_beforeParity5_noOutliear.RData"))
+
+full_df <- readRDS(paste0(fileDir, "modeling/df_downsample.RData"))
+```
+
+
+```{r, eval = F}
+names(full_df)
+#  [1] "AnimalDurableCode"             "DaysFromBirthToParturition"    "DaysFromParturitionToHerdTest"
+#  [4] "InducedParturitionFlag"        "Volume_ml"                     "FatVolume_ml"                 
+#  [7] "ProteinVolume_ml"              "AgeParity"                     "HerdDurableKey"               
+# [10] "DairyYear"                     "Season"                        "EventDate"                    
+# [13] "AgeParityGroup"                "RegimeType"                    "event_date"                   
+# [16] "herd_milk_type"                "transition_year"               "s12"                          
+# [19] "s23"                           "s34"                           "s45"                          
+# [22] "EBV_BodyConditionScore"        "EBV_Fertility_CR42"            "EBV_Fertility_CSD0"           
+# [25] "EBV_Fertility_CSD123"          "EBV_Fertility_PM123"           "EBV_FunctionalSurvival"       
+# [28] "EBV_IndirectSurvival"          "EBV_SomaticCellScore"          "EBV_Survival"                 
+# [31] "EBV_TOP_AdaptabilityToMilking" "EBV_TOP_Capacity"              "EBV_TOP_DairyConformation"    
+# [34] "EBV_TOP_ForeUdder"             "EBV_TOP_FrontTeat"             "EBV_TOP_Legs"                 
+# [37] "EBV_TOP_MilkingSpeed"          "EBV_TOP_OverallOpinion"        "EBV_TOP_RearTeat"             
+# [40] "EBV_TOP_RearUdder"             "EBV_TOP_RumpAngle"             "EBV_TOP_RumpWidth"            
+# [43] "EBV_TOP_ShedTemperament"       "EBV_TOP_Stature"               "EBV_TOP_TeatLength"           
+# [46] "EBV_TOP_UdderOverall"          "EBV_TOP_UdderSupport"          "EBV_TotalFat"                 
+# [49] "EBV_TotalProtein"              "EBV_TotalVolume"               "transition_parity"            
+# [52] "EBV_Liveweight"                "GBV_TotalFat"                  "GBV_TotalProtein"             
+# [55] "GBV_TotalVolume"               "GBV_Liveweight"                "GBV_SomaticCellScore"         
+# [58] "GBV_Fertility_CR42"            "GBV_BodyConditionScore"        "GBV_FunctionalSurvival"       
+# [61] "GBV_TOP_AdaptabilityToMilking" "GBV_TOP_ShedTemperament"       "GBV_TOP_MilkingSpeed"         
+# [64] "GBV_TOP_OverallOpinion"        "GBV_TOP_Stature"               "GBV_TOP_Capacity"             
+# [67] "GBV_TOP_RumpAngle"             "GBV_TOP_RumpWidth"             "GBV_TOP_Legs"                 
+# [70] "GBV_TOP_UdderSupport"          "GBV_TOP_ForeUdder"             "GBV_TOP_RearUdder"            
+# [73] "GBV_TOP_FrontTeat"             "GBV_TOP_RearTeat"              "GBV_TOP_TeatLength"           
+# [76] "GBV_TOP_UdderOverall"          "GBV_TOP_DairyConformation"     "PctHolstein"        
+# "PctFriesian" 
+# [81] "EBV_TOP_AdaptabilityToMilking2" "EBV_TOP_Capacity2"             
+ # [83] "EBV_TOP_DairyConformation2"     "EBV_TOP_ForeUdder2"            
+ # [85] "EBV_TOP_FrontTeat2"             "EBV_TOP_Legs2"                 
+ # [87] "EBV_TOP_MilkingSpeed2"          "EBV_TOP_OverallOpinion2"
+ # [89] "EBV_TOP_RearTeat2"              "EBV_TOP_RearUdder2"
+ # # [91] "EBV_TOP_RumpAngle2"             "EBV_TOP_RumpWidth2"            
+ # [93] "EBV_TOP_ShedTemperament2"       "EBV_TOP_Stature2"              
+ # [95] "EBV_TOP_TeatLength2"            "EBV_TOP_UdderOverall2"         
+ # [97] "EBV_TOP_UdderSupport2"          "GBV_TOP_AdaptabilityToMilking2"
+ # [99] "GBV_TOP_ShedTemperament2"       "GBV_TOP_MilkingSpeed2"         
+# [101] "GBV_TOP_OverallOpinion2"        "GBV_TOP_Stature2"              
+# [103] "GBV_TOP_Capacity2"              "GBV_TOP_RumpAngle2"            
+# [105] "GBV_TOP_RumpWidth2"             "GBV_TOP_Legs2"                 
+# [107] "GBV_TOP_UdderSupport2"          "GBV_TOP_ForeUdder2"            
+# [109] "GBV_TOP_RearUdder2"             "GBV_TOP_FrontTeat2"            
+# [111] "GBV_TOP_RearTeat2"              "GBV_TOP_TeatLength2"           
+# [113] "GBV_TOP_UdderOverall2"          "GBV_TOP_DairyConformation2"    
+> 
+```
+
+# Herd size distribution by milking type
+
+```{r herd size, cache = T}
+for(i in min(full_df$DairyYear):max(full_df$DairyYear)) {
+  herd_size <- full_df %>% 
+    filter(DairyYear == i) %>% 
+    group_by(herd_milk_type, HerdDurableKey) %>% 
+    tally()
+
+ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
+    summarise(count = n(), min = min(n), mean = mean(n), sd = sd(n),
+              max = max(n)) %>%
+    knitr::kable(digits = 0, 
+                 caption = paste0("Mean herd size by herd milking type in ", i)) %>% 
+    kableExtra::kable_styling(full_width = T)
+
+  p <- herd_size %>% 
+  gghistogram(x = "n", binwidth = 5, add = "mean", fill = "herd_milk_type",
+              title = i
+              ) %>% 
+  facet("herd_milk_type", nrow = 3, ncol = 1, scales = "free_y") %>% 
+  ggpar(legend = "none")
+
+  print(p)
+}
+```
+
+# survival rate vs milking type
+
+*Animals with missing survival are removed.*
+
+```{r survival, cache = T, eval = F}
+sur_milk_type <- lapply(2:5, function(i) {
+  out <- full_df %>% filter(AgeParity==i) %>% 
+    filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
+    group_by(new_milk_type, across(paste0("s", i-1, i))) %>% 
+    tally() %>% 
+    mutate(prp = round(n/sum(n), digits = 2),
+           survival = paste0("s", i-1, i))
+  names(out)[2] <- "survived"
+  
+  return(out)
+})
+sur_milk_type <- do.call(rbind, sur_milk_type)
+
+# rate
+test <- filter(sur_milk_type, survived == T) %>% 
+  select(-survived, -n) %>% 
+  pivot_wider(c("survival"), "new_milk_type", values_from = "prp" ) %>% 
+  select(survival, TAD, everything())
+knitr::kable(test)
+write.csv(test, paste0(outputDir, "survival_rate_in_milke_type.csv"))
+
+# Proportion test
+sur_milk_type_n <- sur_milk_type %>% 
+  pivot_wider(c("survival", "new_milk_type"), "survived", values_from = "n" )
+sur_milk_type_n[["FALSE"]][which(is.na(sur_milk_type_n[["FALSE"]]))] <- 0
+sur_milk_type_n$total <- sur_milk_type_n$`FALSE`+sur_milk_type_n$`TRUE`
+sur_milk_type_n$prp <- sur_milk_type_n$`TRUE`/sur_milk_type_n$total
+sur_milk_type_n <- select(sur_milk_type_n, -`FALSE`)
+
+prop <- lapply(split(sur_milk_type_n, sur_milk_type_n$survival), function(i) {
+  
+  sub_prop <- lapply(setdiff(i$new_milk_type, "TAD"), function(j) {
+    freq <- filter(i, new_milk_type %in% c("TAD", j)) %>% 
+      ungroup() %>% 
+      select(`TRUE`, total)
+    return(prop.test(freq$`TRUE`, freq$total)$p.value)
+  })
+  
+  p_value <- data.frame(new_milk_type = setdiff(i$new_milk_type, "TAD"),
+                        p_value = unlist(sub_prop))
+  
+  return(left_join(i, p_value))
+})
+prop <- do.call(rbind, prop)
+
+```
+
+## bar chart
+
+```{r survival bar, fig.show='asis'}
+df <- prop %>% 
+  mutate(sign = ifelse(p_value < 0.001, "***",
+                         ifelse(p_value < 0.01, "**",
+                                ifelse(p_value < 0.05, "*", ""))),
+           new_milk_type = 
+             factor(new_milk_type, 
+                    levels = c("TAD", setdiff(unique(prop$new_milk_type), "TAD"))))
+
+p <- ggplot(df, aes(survival, prp, fill = new_milk_type)) +
+  geom_bar(stat = "identity", width = .8, color = "black", position = position_dodge(.8)) +
+  geom_text(aes(y = prp, label = sign), position = position_dodge(.8),
+            vjust = -0.05) +
+  theme_pubclean() +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$new_milk_type)-1, "Set3")))
+print(p)
+```
+
+## table
+```{r}
+names(prop)[3] <- "survived"
+knitr::kable(prop, digits =2, format.args = list(big.mark = ",")) %>% 
+  kableExtra::kable_styling()
+
+write.csv(prop, paste0(outputDir, "survival_in_milk_type.csv"),
+          quote = F, row.names = F)
+```
+
+# EBV distribution within new_milk_type
+
+```{r ebv, cache=TRUE}
+sumstat_ebv <- lapply(grep("EBV_", names(full_df), value = T), function(i) {
+  
+  # table for plot
+  sumstat_ebv <- select(full_df, ends_with(i), # starts_with("EBV_"),
+                      new_milk_type) %>% #, new_milk_type) %>% 
+    group_by(new_milk_type) %>% 
+    summarise(across(everything(), 
+                     list(mean = mean, median = median, SD = sd))) %>% 
+    pivot_longer(-new_milk_type, "stat", paste0(i, "_"), values_to = i) 
+
+  # table to print
+  out <- sumstat_ebv %>%
+    pivot_wider(stat, new_milk_type, values_from = matches(i)) %>% 
+    mutate(trait = i ) 
+  
+  # # calculate t test p value
+  # ps <- lapply(grep("OAD$|Tran", names(out), value = T), function(j) {
+  #   return(t.test(as.formula(paste0(i, "~new_milk_type")),
+  #          data = select(full_df, new_milk_type, matches(i)) %>% 
+  #            filter(new_milk_type %in% c("TAD", j)))$p.value)
+  # })
+  # 
+  # # add p to both tables
+  # p_value <- data.frame(new_milk_type = grep("OAD$|Tran", names(out), value = T),
+  #                  stat = rep("p_value", 
+  #                             grepl("OAD$|Tran", names(out)) %>% sum()),
+  #                  value = unlist(ps), 
+  #                  trait = i)
+  names(sumstat_ebv)[3] <- "value"
+  sumstat_ebv$trait <- i
+  # sumstat_ebv <- rbind(sumstat_ebv, p_value)
+  # 
+  # idx <- grep("OAD$|Tran", names(out))
+  # p_value <- out[1,]
+  # for(i in seq(idx)) p_value[1,idx[i]] <- ps[[i]]
+  # p_value[1,1] <- "p_value"
+  # p_value$TAD[1] <- NaN
+  # 
+  # out <- rbind(out, p_value)
+  # 
+ return(list(for_plot = sumstat_ebv, out = out))
+})
+
+ebv_table <- do.call(rbind, lapply(sumstat_ebv, `[[`, "out")) %>% 
+  select(-matches("NA")) %>% 
+  select(trait, stat, TAD, everything())
+
+write.csv(ebv_table, "sumstat_ebv.csv", quote = F, row.names = F)
+
+# print kable
+knitr::kable(
+  x = ebv_table, digits = 2,
+  align = "l", format.args = list(big.mark = ","),
+  caption = "") %>%
+  kableExtra::kable_styling(fixed_thead = T)
+
+```
+
+# GBV distribution within new_milk_type
+
+```{r ebv1, cache=TRUE}
+sumstat_gbv <- lapply(grep("GBV_", names(full_df), value = T), function(i) {
+  
+  # table for plot
+  sumstat_gbv <- select(full_df, ends_with(i), # starts_with("EBV_"),
+                      new_milk_type) %>% #, new_milk_type) %>% 
+    group_by(new_milk_type) %>% 
+    summarise(across(everything(), 
+                     list(mean = mean, median = median, SD = sd))) %>% 
+    pivot_longer(-new_milk_type, "stat", paste0(i, "_"), values_to = i) 
+
+  # table to print
+  out <- sumstat_gbv %>%
+    pivot_wider(stat, new_milk_type, values_from = matches(i)) %>% 
+    mutate(trait = i ) 
+  # 
+  # # calculate t test p value
+  # ps <- lapply(grep("OAD$|Tran", names(out), value = T), function(j) {
+  #   return(t.test(as.formula(paste0(i, "~new_milk_type")),
+  #          data = select(full_df, new_milk_type, matches(i)) %>% 
+  #            filter(new_milk_type %in% c("TAD", j)))$p.value)
+  # })
+  # 
+  # # add p to both tables
+  # p_value <- data.frame(new_milk_type = grep("OAD$|Tran", names(out), value = T),
+  #                  stat = rep("p_value", 
+  #                             grepl("OAD$|Tran", names(out)) %>% sum()),
+  #                  value = unlist(ps), 
+  #                  trait = i)
+  names(sumstat_gbv)[3] <- "value"
+  sumstat_gbv$trait <- i
+  # sumstat_gbv <- rbind(sumstat_gbv, p_value)
+  # 
+  # idx <- grep("OAD$|Tran", names(out))
+  # p_value <- out[1,]
+  # for(i in seq(idx)) p_value[1,idx[i]] <- ps[[i]]
+  # p_value[1,1] <- "p_value"
+  # p_value$TAD[1] <- NaN
+  # 
+  # out <- rbind(out, p_value)
+  # 
+ return(list(for_plot = sumstat_gbv, out = out))
+})
+
+gbv_table <- do.call(rbind, lapply(sumstat_gbv, `[[`, "out")) %>% 
+  select(-matches("NA")) %>% 
+  select(trait, stat, TAD, everything())
+
+write.csv(gbv_table, "sumstat_gbv.csv", quote = F, row.names = F)
+
+# print kable
+knitr::kable(
+  x = gbv_table, digits = 2,
+  align = "l", format.args = list(big.mark = ","),
+  caption = "") %>%
+  kableExtra::kable_styling(fixed_thead = T)
+
+```
+
+## Box plot
+
+It takes too long to plot so only plot one trait
+
+```{r ebv_boxplot, cache = TRUE, eval = F}
+# Error in lazyLoadDBinsertValue(data, datafile, ascii, compress, envhook) : 
+  # long vectors not supported yet: connections.c:6011
+i <- grep("EBV_", names(full_df), value = T)[1]
+  p <- ggboxplot(filter(full_df, !is.na(new_milk_type)),
+                 "new_milk_type", i, fill = "new_milk_type",
+                 palette = "jco") +
+    stat_compare_means(method = "anova") +
+    stat_compare_means(label = "p.signif", method = "t.test", ref.group = "TAD")
+  print(p)
+
+```
+
+## comparison of mean EBV and GEBV across milking types
+
+error bar chart 
+
+```{r EBV_barchart}
+
+ebv_plot <-  do.call(rbind, lapply(sumstat_ebv, `[[`, "for_plot")) 
+gbv_plot <-  do.call(rbind, lapply(sumstat_gbv, `[[`, "for_plot")) 
+ebv_plot$evaluation <- "EBV"
+gbv_plot$evaluation <- "GEBV"
+
+for_plot <- rbind(ebv_plot, gbv_plot)
+for_plot$trait <- strsplit(for_plot$trait, "BV_") %>% sapply(tail, 1)
+
+traits <- grep("BV_", names(full_df), value = T) %>% 
+  strsplit("BV_") %>% sapply(tail, 1) %>% unique()
+
+if(length(unique(for_plot$trait))!=length(traits)) stop("EBV_barchart, trait n inconsistent")
+# t test GBV vs EBV
+p_values <- lapply(unique(traits), function(i) {
+  
+  df <- full_df %>% 
+    select(new_milk_type, AnimalDurableCode, matches(paste0("BV_", i, "$"))) %>% 
+    distinct() %>% 
+    pivot_longer(matches(i), "evaluation", paste0("_", i), values_to = "value")
+  
+  if(df$evaluation %>% unique() %>% length()<2) {return(NULL)}
+  
+  by_milk <- lapply(unique(df$new_milk_type), function(j) {
+    df_sub <- filter(df, new_milk_type == j)
+    return(t.test(as.formula(value~evaluation), data = df_sub)$p.value)
+  })
+  return(data.frame(trait = rep(i,length(by_milk)),
+                    new_milk_type = unique(df$new_milk_type),
+                    p_value = unlist(by_milk)))
+})
+p_values <- do.call(rbind.data.frame, p_values)
+
+ps <- lapply(unique(for_plot$trait), function(i) {
+  df <- filter(for_plot, trait == i) %>% 
+    pivot_wider(c("trait", "new_milk_type", "evaluation"), stat,
+                values_from = "value") %>% 
+    left_join(p_values) %>% 
+    mutate(sign = ifelse(p_value < 0.001, "***",
+                         ifelse(p_value < 0.01, "**",
+                                ifelse(p_value < 0.05, "*", ""))),
+           new_milk_type = 
+             factor(new_milk_type, 
+                    levels = c("TAD", setdiff(unique(df$new_milk_type), "TAD"))))
+  
+  df$sign[df$evaluation=="EBV"] <- ""
+  
+  return(list(df = df,
+              p = ggplot(df, aes(new_milk_type, mean, color = evaluation)) +
+                geom_pointrange(aes(ymin = mean-SD, ymax = mean+SD),
+                                position = position_dodge(0.5)) +
+                # geom_errorbar(aes(ymin = mean-SD, ymax = mean+SD), width = .2) +
+                labs(title = i, x = "") +
+                geom_text(aes(y = mean+SD, label = sign),
+                          position = position_dodge(1), vjust = -0.5) +
+                theme_classic()))
+})
+
+sapply(lapply(ps, `[[`, "p"), print)
+
+sumstat_gbv_ebv <- do.call(rbind.data.frame, lapply(ps, `[[`, "df"))
+write.csv(sumstat_gbv_ebv, paste0(outputDir, "ebv_gbv_compare.csv"))
+
+```
+
+# Compare mean EBV of survived and dead cows 
+
+```{r ebv within sur and milk, results='asis', eval = F}
+
+ebv_sur_milk <- lapply(2:5, function(i) {
+  out <- full_df %>% filter(AgeParity==i) %>% 
+    filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
+    select(new_milk_type, starts_with("s"), starts_with("EBV")) %>% 
+    group_by(new_milk_type, across(paste0("s", i-1, i))) %>% 
+    summarise(across(starts_with("EBV"), ~mean(.), na.rm = T)) %>% 
+    mutate(survival = paste0("s", i-1, i))
+  names(out)[2] <- "survived"
+  
+  return(out)
+})
+ebv_sur_milk <- do.call(rbind, ebv_sur_milk)
+
+longer <- ebv_sur_milk %>% 
+  pivot_longer(starts_with("EBV"), "trait", values_to = "mean_EBV") %>% 
+  arrange(survival, new_milk_type, trait, survived) %>% 
+  pivot_wider(names_from = survived, values_from = mean_EBV, 
+              names_prefix = "survived_")
+
+# longer$diff <- longer$survived_FALSE-longer$survived_TRUE
+# knitr::kable(longer, digits = 3)
+```
+
+```{r t test, cache=TRUE}
+by_sur <- lapply(2:5, function(i) {
+  
+  by_trait <- lapply(grep("EBV_", names(full_df), value = T), function(j) {
+    
+    df <- filter(full_df, AgeParity==i) %>% 
+      select(matches(paste0("s", i-1, i)), new_milk_type, matches(j),
+             AnimalDurableCode) %>% 
+      pivot_longer(starts_with("s"), "survival", values_to = "value") %>% 
+      distinct() 
+    
+    by_milk <- lapply(unique(df$new_milk_type), function(k) {
+      df_sub <- filter(df, new_milk_type == k)
+      
+      if(T %in% df_sub$value && F %in% df_sub$value) {
+        return(
+          data.frame(trait = j,
+                     new_milk_type = k,
+                     p_value = t.test(as.formula(paste0(j,"~value")), 
+                                      data = filter(df_sub, !is.na(value)))$p.value))
+      } else {
+        return(NULL)
+      }
+    })
+    out <- do.call(rbind.data.frame, by_milk)
+    
+    if(length(out) > 0) {
+      return(out %>% mutate(survival = paste0("s", i-1, i)))
+    }
+  })
+  return(do.call(rbind.data.frame, by_trait))
+})
+by_sur <- do.call(rbind.data.frame, by_sur)
+
+longer <- left_join(longer, by_sur)
+write.csv(longer, paste0(outputDir, "EBV_in_survival_milk_type.csv"),
+          quote = F, row.names = F)
+
+```
+
+```{r ebv plot1, fig.show='asis', cache=TRUE}
+df <- longer %>% 
+  mutate(sign = ifelse(p_value < 0.001, "***",
+                         ifelse(p_value < 0.01, "**",
+                                ifelse(p_value < 0.05, "*", "")))) %>% 
+  pivot_longer(cols = starts_with("survived_"), names_to = "survived",
+               names_prefix = "survived_",
+               values_to = "value")
+df$sign[df$survived==F] <- ""
+
+ps <- lapply(grep("EBV_", unique(df$trait), value = T), function(i) {
+  df <- filter(df, trait == i)
+  mutate(df, new_milk_type = 
+             factor(new_milk_type, 
+                    levels = c("TAD", setdiff(unique(df$new_milk_type), "TAD")))) %>% 
+  ggplot(aes(new_milk_type, value, fill = survived)) +
+  geom_bar(stat = "identity", width = .8, color = "black", 
+           position = position_dodge(.8)) +
+  geom_text(aes(y = value, label = sign), position = position_dodge(.8),
+            vjust = -0.05) +
+  facet_grid(survival~.) +
+  labs(title = i, x = "") +
+  theme_pubclean() +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(prop$new_milk_type)-1, "Set3")))
+})
+sapply(ps, print)
+```
+
+```{r, eval = FALSE}
+rmarkdown::render(output_dir = outputDir, 
+                  input = rstudioapi::getSourceEditorContext()$path)
+```

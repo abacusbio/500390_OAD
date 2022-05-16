@@ -74,11 +74,13 @@ production <- left_join(production, test, by = "AnimalDurableCode")
 rm(list = ls(pattern = "test|gebv"))
 
 # load breed percentage information
+## PctHolstein: foreign Holstein percentage
+## PctFriesian: NZ HF perc
 animal <- fread(
   paste0(rawfileDir, "2022021110_EBVs/2022021110-Common-AnimalInfo"), sep = ",",
   header = T)
 animal <- filter(animal, AnimalDurableCode %in% production$AnimalDurableCode) %>% 
-  select(AnimalDurableCode, PctHolstein)
+  select(AnimalDurableCode, PctHolstein, PctFriesian)
 production <- left_join(production, animal)
 saveRDS(production, paste0(outputDir, 
                            "production_survival_noYoungAnimal_gebv_beforeParity5.RData"))

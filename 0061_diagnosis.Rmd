@@ -1,5 +1,5 @@
 ---
-title: "Diagnosis"
+title: "Find TAD herd outliers"
 author: "Luna ZHnag"
 date: "`r Sys.Date()`"
 output:
@@ -72,28 +72,37 @@ names(full_df)
 # [76] "GBV_TOP_UdderOverall"          "GBV_TOP_DairyConformation"     "PctHolstein"
 ```
 
-## Herd size distribution
+# Diagnosis
+
+## Herd size distribution in `r min(full_df$DairyYear)` to `r max(full_df$DairyYear)`
 
 ```{r herd size diagnosis}
-herd_size <- full_df %>% filter(DairyYear == max(full_df$DairyYear)) %>% 
+for(i in min(full_df$DairyYear):max(full_df$DairyYear)) {
+  herd_size <- full_df %>% 
+  filter(DairyYear == i) %>% 
   group_by(herd_milk_type, HerdDurableKey) %>% 
   tally()
 
-ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
-  summarise(min = min(n), mean = mean(n), sd = sd(n), max = max(n)) %>% 
-  knitr::kable(digits = 0, caption = "Herd size by herd milking type") %>% 
+k <- ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
+  summarise(count = n(), min = min(n), mean = mean(n), sd = sd(n), max = max(n)) %>% 
+  knitr::kable(digits = 0, 
+               caption = paste0("Herd size by herd milking type in ", i)) %>% 
   kableExtra::kable_styling(full_width = T)
+print(k)
 
-ggplot(herd_size, aes(n)) +
+p <- ggplot(herd_size, aes(n)) +
   geom_histogram(bins = 100) +
   # geom_vline(aes(xintercept = mean(n)), color = "red") +
   # geom_vline(aes(xintercept = mean(n)+2*sd(n)), color = "blue") +
   facet_grid(herd_milk_type~., scale = "free_y") + 
-  labs(title = "Herd size")
-
-ggplot(herd_size, aes(n, fill = herd_milk_type)) +
+  labs(title = paste0("Herd size in ", i))
+print(p)
+p <- ggplot(herd_size, aes(n, fill = herd_milk_type)) +
   geom_boxplot() +
-  labs(title = "Herd size")
+  labs(title = paste0("Herd size in ", i))
+print(p)
+}
+
   
 ```
 
@@ -101,31 +110,34 @@ ggplot(herd_size, aes(n, fill = herd_milk_type)) +
 
 ```{r holstein perc}
 holstein_pct <- full_df %>% 
-  select(HerdDurableKey, AnimalDurableCode, PctHolstein, herd_milk_type) %>% 
+  select(HerdDurableKey, AnimalDurableCode, PctHolstein, PctFriesian,
+         herd_milk_type) %>% 
   distinct() %>% 
   group_by(herd_milk_type, HerdDurableKey) %>% 
-  summarise(#min = min(PctHolstein), mean = mean(PctHolstein),
-            mean_pct = mean(PctHolstein)#, max = max(PctHolstein), 
-           # sd = sd(PctHolstein)
+  summarise(herd_foreign_pct = mean(PctHolstein), herd_hf_pct = mean(PctFriesian)
            )
 
 ungroup(holstein_pct) %>% group_by(herd_milk_type) %>% 
-  summarise(min = min(mean_pct), mean = mean(mean_pct), sd = sd(mean_pct),
-            max = max(mean_pct)) %>% 
+  summarise(across(matches("herd_"), 
+                   list(min = min, mean = mean, sd = sd, max = max))) %>% 
   knitr::kable(digits = 2, 
                caption = "Mean herd Holstein percentage by herd milking type") %>% 
   kableExtra::kable_styling(full_width = T)
 
-ggplot(holstein_pct, aes(mean_pct)) +
-  geom_histogram(bins = 100) +
-  facet_grid(herd_milk_type~., scale = "free_y") +
+for (i in c("herd_foreign_pct", "herd_hf_pct")) {
+p <-  ggplot(holstein_pct, aes_string(i)) +
+    geom_histogram(bins = 100) +
+    facet_grid(herd_milk_type~., scale = "free_y") +
   # geom_vline(aes(xintercept = mean(mean)), color = "red") +
   # geom_vline(aes(xintercept = mean(mean)+2*sd(mean)), color = "blue") +
-  labs(title = "Mean herd Holstein percentage")
-
-ggplot(holstein_pct, aes(mean_pct, fill = herd_milk_type)) +
+    labs(title = paste0("Mean ", i))
+print(p)
+p <- ggplot(holstein_pct, aes_string(i, fill = "herd_milk_type")) +
   geom_boxplot() +
-  labs(title = "Mean herd Holstein percentage")
+  labs(title = paste0("Mean ", i))
+print(p)
+}
+
 ```
 
 ## Milk volume distribution
@@ -133,9 +145,9 @@ ggplot(holstein_pct, aes(mean_pct, fill = herd_milk_type)) +
 Cannot just extract Nov production because none of the months have records of
 all cows.
 
-```{r milk_volumn}
+```{r milk_volume}
 test <- select(full_df, AnimalDurableCode, event_date) %>% 
-  mutate(mo = month(event_date))
+  mutate(mo = lubridate::month(event_date))
 
 n_animal <- unique(test$AnimalDurableCode) %>% length()
 
@@ -150,20 +162,31 @@ records %>%
                caption = "N cows with milking records by month") %>% 
   kableExtra::kable_styling(full_width = T)
 
+# Sept-Dec together
+records <- data.frame(month = "9-12", n_cows = NA)
+records$n_cows[1] <- filter(test, mo %in% 9:12) %>% 
+    select(AnimalDurableCode) %>% distinct() %>% nrow()
+records$pct <- records$n_cows/n_animal
+records %>% 
+  knitr::kable(format.args = list(big.mark = ","), digits = 2, 
+               caption = "N cows with milking records in Setp-Dec") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+
 ```
 
-### check every month
+### check Sept-Dec
 
-For each cow, get the mean volumn of all the herd tests in that month across
-all years, i.e. life time mean volumn by month.  
+For each cow, get the mean volume of all the herd tests in that month across
+all years, i.e. life time mean volume by month.  
 Then get the distribution of the above for each herd.
 
-```{r}
+```{r milk_vol}
 milk_vol <- select(full_df, HerdDurableKey, herd_milk_type, AnimalDurableCode,
                    event_date, Volume_ml) %>% 
-  mutate(mo = month(event_date)) 
+  mutate(mo = lubridate::month(event_date)) 
 
-test <- lapply(1:12, function(i) {
+test <- lapply(9:12, function(i) {
   out <- milk_vol %>% 
     filter(mo == i) %>% # can have records of the same mo in multiple years
     group_by(herd_milk_type, HerdDurableKey, AnimalDurableCode) %>% 
@@ -179,7 +202,7 @@ ungroup(milk_vol) %>% group_by(month, herd_milk_type) %>%
   summarise(min = min(vol), mean = mean(vol), sd = sd(vol),
             max = max(vol)) %>% 
   knitr::kable(format.args = list(big.mark = ","), digits = 0, 
-               caption = "Mean cow milk volumn by month and herd milking type") %>% 
+               caption = "Mean cow milk volume by month and herd milking type") %>% 
   kableExtra::kable_styling(full_width = T)
 
 # ggplot(milk_vol, aes(vol)) +
@@ -192,11 +215,104 @@ ungroup(milk_vol) %>% group_by(month, herd_milk_type) %>%
 ggplot(milk_vol, aes(vol, fill = herd_milk_type)) +
   geom_boxplot() + #orientation = ) +
   facet_grid(month~., scales = "free_y") +
-  labs(title = "Mean cow milk volumn")
+  labs(title = "Mean cow milk volume")
 
 ```
 
-```{r output, eval = F}
+# Data cleaning of TAD herds
+
+```{r before_cleaning}
+# sanity check
+cat("Before cleaning.\n
+    n animals:", length(unique(full_df$AnimalDurableCode)), ", n events:",
+    nrow(full_df), ", n herds:\n")
+group_by(full_df, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(herd_milk_type) %>% summarise(count = n()) %>% knitr::kable()
+```
+
+```{r remove herd size}
+remove_herds <- lapply(min(full_df$DairyYear):max(full_df$DairyYear), 
+                       function(i) {
+  herd_size <- full_df %>% 
+    filter(DairyYear == i) %>% 
+    group_by(herd_milk_type, HerdDurableKey) %>% 
+    tally()
+  
+  max_herd_size <- max(herd_size$n[herd_size$herd_milk_type=="OAD"])
+  return(herd_size$HerdDurableKey[herd_size$n>max_herd_size &
+                                  # herd_size$n<10 &
+                                    herd_size$herd_milk_type=="TAD"])
+                       })
+remove_herds <- do.call(rbind, remove_herds)
+  
+df_new <- filter(full_df, !HerdDurableKey %in% remove_herds)
+# sanity check
+cat("Remove herds with size bigger than max OAD herd size in each year.
+New data has:\n
+    n animals:", length(unique(df_new$AnimalDurableCode)), ", n events:",
+    nrow(df_new), ", n herds:\n")
+group_by(df_new, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(herd_milk_type) %>% summarise(count = n()) %>% knitr::kable()
+```
+
+```{r remove_foreign_holstein}
+max_foreign <- 0.35
+df_new <- filter(df_new, PctHolstein < max_foreign)
+# sanity check
+cat("Remove herds with foreign Holstein % more than", max_foreign, ".
+New data has:\n
+    n animals:", length(unique(df_new$AnimalDurableCode)), ", n events:",
+    nrow(df_new), ", n herds:\n")
+group_by(df_new, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(herd_milk_type) %>% summarise(count = n()) %>% knitr::kable()
+```
+
+```{r remove holstein friesian}
+max_hf <- 0.4
+df_new <- filter(df_new, PctFriesian < max_hf)
+# sanity check
+cat("Remove herds with HF % more than", max_hf, ".
+New data has:\n
+    n animals:", length(unique(df_new$AnimalDurableCode)), ", n events:",
+    nrow(df_new), ", n herds:\n")
+group_by(df_new, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(herd_milk_type) %>% summarise(count = n()) %>% knitr::kable()
+```
+
+```{r remove high milk volume}
+remove_herds <- lapply(9:12, function(i) {
+  max_vol <- filter(milk_vol, month == i & herd_milk_type == "OAD") %>%
+    ungroup() %>% 
+    select(vol) %>% unlist() %>% max()
+  
+  return(filter(milk_vol, month == i & vol > max_vol) %>% 
+           ungroup() %>% select(HerdDurableKey) %>% unlist())
+})
+remove_herds <- unlist(remove_herds) %>% unique()
+
+df_new <- filter(df_new, !HerdDurableKey %in% remove_herds)
+# sanity check
+cat("Remove herds with milk volume more than max volume of OAD herds in each
+month. New data has:\n
+    n animals:", length(unique(df_new$AnimalDurableCode)), ", n events:",
+    nrow(df_new), ", n herds:\n")
+group_by(df_new, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(herd_milk_type) %>% summarise(count = n()) %>% 
+  knitr::kable()
+```
+```{r save, eval = FALSE}
+saveRDS(df_new, 
+        paste0(fileDir,
+               "production_survival_noYoungAnimal_gebv_beforeParity5_noOutliear.RData"))
+```
+
+
+```{r output, eval = FALSE}
 rmarkdown::render(output_dir = outputDir, 
                   input = rstudioapi::getSourceEditorContext()$path)
 ```

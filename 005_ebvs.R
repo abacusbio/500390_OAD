@@ -24,10 +24,12 @@ ebvs <- lapply(seq(dirs), function(i) {
  
   trait <- strsplit(dirs[i], "-") %>% unlist() %>% head(2) %>% tail(1)
 print(trait)
+  col_name <- ifelse(grepl("liveweight", trait, ignore.case = T),
+                     "NZ_EBV", "EBV")
   test <-fread(
     paste0(rawfileDir, dirs[i], "/",
            dir(paste0(rawfileDir, dirs[i], "/"), pattern = "AnimalResults$")), 
-    sep = ",", select = c("AnimalDurableCode", "EBV")) %>% # no missing data
+    sep = ",", select = c("AnimalDurableCode", col_name)) %>% # no missing data
     filter(AnimalDurableCode %in% animals$AnimalDurableCode)
   
   names(test)[2] <- paste0("EBV_", trait)
