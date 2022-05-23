@@ -31,7 +31,7 @@ suppressWarnings({
 
 fileDir <- "e:/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
 rawfileDir <- "z:/Luna/500390_OAD/OAD Dairy Data/"
-outputDir <- "C:/Users/lzhang/Documents/GitHub/500390_OAD/output/"
+outputDir <- "C:/Users/lzhang/AbacusBio Ltd/Pivot Cloud Drive - 500390 - DNZ TOPs impact on OAD survival 2021-3637/2. Doing/Results/" # "C:/Users/lzhang/Documents/GitHub/500390_OAD/output/"
 
 if(!exists(outputDir)) {
   dir.create(outputDir)
@@ -96,12 +96,137 @@ names(full_df)
 # [109] "GBV_TOP_RearUdder2"             "GBV_TOP_FrontTeat2"            
 # [111] "GBV_TOP_RearTeat2"              "GBV_TOP_TeatLength2"           
 # [113] "GBV_TOP_UdderOverall2"          "GBV_TOP_DairyConformation2"    
-> 
+```
+
+# Holstein percentage distribution by milking type
+
+```{r holstein}
+holstein_pct <- full_df %>% 
+  select(HerdDurableKey, AnimalDurableCode, PctHolstein, PctFriesian,
+         herd_milk_type) %>% 
+  distinct() %>% 
+  mutate(herd_milk_type = factor(herd_milk_type, 
+                                 levels = c("TAD", "OAD", "Transition"))) %>% 
+  group_by(herd_milk_type, HerdDurableKey) %>% 
+  summarise(herd_foreign_pct = mean(PctHolstein), herd_hf_pct = mean(PctFriesian)
+           )
+
+sumstat_holstein <- ungroup(holstein_pct) %>% group_by(herd_milk_type) %>% 
+  summarise(across(matches("herd_"), 
+                   list(min = min, mean = mean, sd = sd, max = max)))
+
+write.csv(sumstat_holstein, paste0(outputDir, "sumstat_holstein.csv"), 
+          row.names = F)
+
+sumstat_holstein%>% 
+  knitr::kable(digits = 2, 
+               caption = "Mean herd Holstein percentage by herd milking type") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+for (i in c("herd_foreign_pct", "herd_hf_pct")) {
+# p <-  ggplot(holstein_pct, aes_string(i, fill = "herd_milk_type")) +
+  # geom_boxplot() +
+  # labs(title = paste0("Mean ", i)) +
+  p <- ggboxplot(holstein_pct, "herd_milk_type", i, fill = "herd_milk_type", 
+            title = paste0("Mean ", i), xlab = "", ggtheme = theme_pubclean()) +
+    stat_compare_means(label = "p.signif", ref.group = "TAD",
+                       method = "t.test") +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(holstein_pct$herd_milk_type)-1, "Set3")))
+  print(p)
+}
+
+```
+
+# Milk production by milking type in Sept-Dec
+
+For each cow, get the mean volume of all the herd tests in that month across
+all years, i.e. life time mean volume by month.  
+Then get the distribution of the above for each herd.
+
+98% cows have herd tests in Sept, Nov or Dec, hence the 3 months.
+
+```{r milk_vol}
+milk_vol <- select(full_df, HerdDurableKey, herd_milk_type, AnimalDurableCode,
+                   event_date, Volume_ml) %>% 
+  mutate(mo = lubridate::month(event_date),
+         herd_milk_type = factor(herd_milk_type, 
+                                 levels = c("TAD", "OAD", "Transition"))) 
+
+test <- lapply(9:12, function(i) {
+  out <- milk_vol %>% 
+    filter(mo == i) %>% # can have records of the same mo in multiple years
+    group_by(herd_milk_type, HerdDurableKey, AnimalDurableCode) %>% 
+    summarise(vol = mean(Volume_ml))
+  
+  out$month <- i
+  return(out)
+})
+
+milk_vol <- do.call(rbind, test)
+
+sumstat_milk_vol <- ungroup(milk_vol) %>% group_by(month, herd_milk_type) %>% 
+  summarise(min = min(vol), mean = mean(vol), sd = sd(vol),
+            max = max(vol)) 
+
+write.csv(sumstat_milk_vol, paste0(outputDir, "sumstat_milk_vol.csv"),
+          row.names = F)
+sumstat_milk_vol%>% 
+  knitr::kable(format.args = list(big.mark = ","), digits = 0, 
+               caption = "Mean cow milk volume by month and herd milking type") %>% 
+  kableExtra::kable_styling(full_width = T)
+
+# ggplot(milk_vol, aes(vol)) +
+#   geom_density() +
+#   facet_grid(month~herd_milk_type, scale = "free_y") +
+#   # geom_vline(aes(xintercept = mean(mean)), color = "red") +
+#   # geom_vline(aes(xintercept = mean(mean)+2*sd(mean)), color = "blue") +
+#   labs(title = "Mean cow milk volumn")
+
+ggboxplot(milk_vol, "herd_milk_type", "vol", fill = "herd_milk_type", 
+            title = "Mean cow milk volume", xlab = "", ylim = c(0, 50000),
+          facet.by = "month", ggtheme = theme_pubclean()) +
+    stat_compare_means(aes(label = ..p.signif..), ref.group = "TAD",
+                       method = "t.test") +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(holstein_pct$herd_milk_type)-1, "Set3")))
+
+
 ```
 
 # Herd size distribution by milking type
 
-```{r herd size, cache = T}
+## mean across years
+
+```{r herd size}
+size <- full_df %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  mutate(size = n) %>% 
+  group_by(herd_milk_type, DairyYear) %>% 
+  summarise(count = n(), min = min(size), median = median(size), max = max(size), 
+            mean = mean(size), SD = sd(size))
+write.csv(size, paste0(outputDir, "herd_size_by_year.csv"), row.names = F)
+
+size <- full_df %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  mutate(herd_milk_type = factor(herd_milk_type, 
+                                 levels = c("Transition", "OAD", "TAD")),
+         DairyYear = factor(DairyYear))
+
+ggline(size, "DairyYear", "n", add = "mean_se", color = "herd_milk_type",
+          palette = "jco",
+          xlab = "")# +
+  # stat_compare_means(aes(group = herd_milk_type), label = "p.signif", method = "t.test",
+                     # label.y = 450) + # rep(500, nlevels(size$DairyYear))) 
+```
+
+## per year
+
+```{r herd size1, cache = T}
 for(i in min(full_df$DairyYear):max(full_df$DairyYear)) {
   herd_size <- full_df %>% 
     filter(DairyYear == i) %>% 
@@ -130,7 +255,7 @@ ungroup(herd_size) %>% group_by(herd_milk_type) %>%
 
 *Animals with missing survival are removed.*
 
-```{r survival, cache = T, eval = F}
+```{r survival, cache = T, echo = F}
 sur_milk_type <- lapply(2:5, function(i) {
   out <- full_df %>% filter(AgeParity==i) %>% 
     filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
@@ -149,7 +274,8 @@ test <- filter(sur_milk_type, survived == T) %>%
   select(-survived, -n) %>% 
   pivot_wider(c("survival"), "new_milk_type", values_from = "prp" ) %>% 
   select(survival, TAD, everything())
-knitr::kable(test)
+knitr::kable(test) %>% 
+  kableExtra::kable_styling()
 write.csv(test, paste0(outputDir, "survival_rate_in_milke_type.csv"))
 
 # Proportion test
@@ -178,21 +304,38 @@ prop <- do.call(rbind, prop)
 
 ```
 
-## bar chart
+## TAD and OAD only
 
 ```{r survival bar, fig.show='asis'}
 df <- prop %>% 
   mutate(sign = ifelse(p_value < 0.001, "***",
                          ifelse(p_value < 0.01, "**",
-                                ifelse(p_value < 0.05, "*", ""))),
+                                ifelse(p_value < 0.05, "*", 
+                                       ifelse(p_value < 0.06, ".", "")))),
            new_milk_type = 
              factor(new_milk_type, 
                     levels = c("TAD", setdiff(unique(prop$new_milk_type), "TAD"))))
 
+ggplot(filter(df, as.integer(new_milk_type) <=2),
+       aes(survival, prp, fill = new_milk_type)) +
+  geom_bar(stat = "identity", width = .8, color = "black", position = position_dodge(.8)) +
+  geom_text(aes(label = sign), position = position_dodge(.8),
+            vjust = 0) + #-0.05) +
+  theme_pubclean() +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$new_milk_type)-1, "Set3")))
+
+```
+
+## all milking types
+
+```{r survival_bar1, fig.show='asis'}
 p <- ggplot(df, aes(survival, prp, fill = new_milk_type)) +
   geom_bar(stat = "identity", width = .8, color = "black", position = position_dodge(.8)) +
-  geom_text(aes(y = prp, label = sign), position = position_dodge(.8),
-            vjust = -0.05) +
+  geom_text(aes(label = sign), position = position_dodge(.8),
+            vjust = 0) + #-0.05) +
   theme_pubclean() +
   scale_fill_manual(values = 
                       c("grey", #ggpubr::get_palette("npg", 5)
@@ -202,6 +345,7 @@ print(p)
 ```
 
 ## table
+
 ```{r}
 names(prop)[3] <- "survived"
 knitr::kable(prop, digits =2, format.args = list(big.mark = ",")) %>% 
@@ -261,7 +405,7 @@ ebv_table <- do.call(rbind, lapply(sumstat_ebv, `[[`, "out")) %>%
   select(-matches("NA")) %>% 
   select(trait, stat, TAD, everything())
 
-write.csv(ebv_table, "sumstat_ebv.csv", quote = F, row.names = F)
+write.csv(ebv_table, paste0(outputDir, "sumstat_ebv.csv"), quote = F, row.names = F)
 
 # print kable
 knitr::kable(
@@ -322,7 +466,7 @@ gbv_table <- do.call(rbind, lapply(sumstat_gbv, `[[`, "out")) %>%
   select(-matches("NA")) %>% 
   select(trait, stat, TAD, everything())
 
-write.csv(gbv_table, "sumstat_gbv.csv", quote = F, row.names = F)
+write.csv(gbv_table, paste0(outputDir, "sumstat_gbv.csv"), quote = F, row.names = F)
 
 # print kable
 knitr::kable(
@@ -330,6 +474,40 @@ knitr::kable(
   align = "l", format.args = list(big.mark = ","),
   caption = "") %>%
   kableExtra::kable_styling(fixed_thead = T)
+
+```
+
+# EBV vs GBV comparision
+
+## Correlation
+
+The reference line is $y=x$.
+
+```{r bv_correlation, fig.show='asis', fig.height=12, fig.width=8, cache=TRUE}
+traits <- c("BodyConditionScore", "Fertility_CR42", "FunctionalSurvival", 
+            "SomaticCellScore", "TotalVolume", "TotalFat", "TotalProtein", 
+            "TOP_UdderSupport", "TOP_MilkingSpeed", "TOP_Capacity", "TOP_FrontTeat")
+
+# very slow
+# probably because too many obs
+
+df <- select(full_df, AnimalDurableCode, matches("BV_")) %>% 
+  distinct()
+
+ps <- lapply(traits, function(trait) {
+  return(select(df, matches(paste0(trait, "$"))) %>% 
+    ggscatter(paste0("EBV_", trait), paste0("GBV_", trait), 
+              color = "black", shape = 21, size = 1, # Points color, shape and size
+             # add = "reg.line",
+            #  add.params = list(color = "aquamarine3", fill = "lightgray"), # Customize reg. line
+            #  conf.int = TRUE, # Add confidence interval
+              cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
+              cor.coeff.args = list(method = "pearson", label.sep = "\n"),
+              title = trait, xlab = "EBV", ylab = "GEBV") + 
+      geom_abline(intercept = 0, slope = 1, color = "aquamarine4", size = 1.5))
+})
+
+invisible(gridExtra::marrangeGrob(grobs = ps, nrow = 4, ncol = 3) %>% print())
 
 ```
 
@@ -409,7 +587,7 @@ ps <- lapply(unique(for_plot$trait), function(i) {
                 # geom_errorbar(aes(ymin = mean-SD, ymax = mean+SD), width = .2) +
                 labs(title = i, x = "") +
                 geom_text(aes(y = mean+SD, label = sign),
-                          position = position_dodge(1), vjust = -0.5) +
+                          position = position_dodge(1), vjust = 0) + #-0.5) +
                 theme_classic()))
 })
 
@@ -422,7 +600,7 @@ write.csv(sumstat_gbv_ebv, paste0(outputDir, "ebv_gbv_compare.csv"))
 
 # Compare mean EBV of survived and dead cows 
 
-```{r ebv within sur and milk, results='asis', eval = F}
+```{r ebv within sur and milk, results='asis'}
 
 ebv_sur_milk <- lapply(2:5, function(i) {
   out <- full_df %>% filter(AgeParity==i) %>% 
@@ -498,15 +676,15 @@ df <- longer %>%
 df$sign[df$survived==F] <- ""
 
 ps <- lapply(grep("EBV_", unique(df$trait), value = T), function(i) {
-  df <- filter(df, trait == i)
-  mutate(df, new_milk_type = 
+  df_sub <- filter(df, trait == i)
+  mutate(df_sub, new_milk_type = 
              factor(new_milk_type, 
-                    levels = c("TAD", setdiff(unique(df$new_milk_type), "TAD")))) %>% 
+                    levels = c("TAD", setdiff(unique(df_sub$new_milk_type), "TAD")))) %>% 
   ggplot(aes(new_milk_type, value, fill = survived)) +
   geom_bar(stat = "identity", width = .8, color = "black", 
            position = position_dodge(.8)) +
-  geom_text(aes(y = value, label = sign), position = position_dodge(.8),
-            vjust = -0.05) +
+  geom_text(aes(label = sign), position = position_dodge(.8),
+            vjust = +0.5) +
   facet_grid(survival~.) +
   labs(title = i, x = "") +
   theme_pubclean() +
@@ -517,6 +695,7 @@ ps <- lapply(grep("EBV_", unique(df$trait), value = T), function(i) {
 })
 sapply(ps, print)
 ```
+
 
 ```{r, eval = FALSE}
 rmarkdown::render(output_dir = outputDir, 

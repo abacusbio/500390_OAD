@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: #> rmarkdown::html_vignette
   html_document:
     toc: true
-    toc_float: false
+    toc_float: true
 ---
 
 ```{r setup, include = FALSE}
@@ -23,15 +23,16 @@ Modelling of survival on effects.
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(ggpubr)
 library(kableExtra)
 # library(plm)
 
 source("utils.R")
 
 
-outputDir <- "c:/Users/lzhang/Documents/GitHub/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
+outputDir <- "C:/Users/lzhang/AbacusBio Ltd/Pivot Cloud Drive - 500390 - DNZ TOPs impact on OAD survival 2021-3637/2. Doing/Results/" # "c:/Users/lzhang/Documents/GitHub/500390_OAD/output/" # "z:/Luna/500390_OAD/explore/"
 # rawfileDir <- "e:/OAD Dairy Data/2022021110_EBVs/"
-fileDir <- "e:/500390_OAD/output/modeling/" # copy to "z:/Luna/500390_OAD/output/" later
+fileDir <-  "e:/500390_OAD/output/modeling/"
 
 # if(!exists(outputDir)) dir.create(outputDir)
 ```
@@ -58,164 +59,320 @@ group_by(df_downsample, herd_milk_type, HerdDurableKey) %>%
 group_by(df_downsample, herd_milk_type, new_milk_type) %>% 
  # summarise(count = n()) %>% 
   #ungroup() %>% group_by(herd_milk_type, new_milk_type) %>% 
-  tally() %>% 
+  tally() %>% ungroup() %>% 
   mutate(prop = n/sum(n)) %>% 
   knitr::kable(align = "l",
-               caption = "N animals by milking type", digits = 2,
+               caption = "N animals by milking type", digits = 3,
                format.args = list(big.mark=",")) %>% 
   kable_styling(full_width = T)
 ```
 
-# EBV and milk_type interaction model
+```{r essential_traits}
+essential_traits <- c("BodyConditionScore", "Fertility_CR42", 
+                      "FunctionalSurvival", "SomaticCellScore",
+                      "TOP_UdderSupport", "TotalVolume", "TotalFat", "TotalProtein")
+```
 
-e.g. `glm(formula = s12 ~ cg + Trait + milk_type + Trait*milk_type, family = gaussian(link = "identity"),  ...)`  
-Only look at OAD and TAD. Each model takes up to 10 min to run.  
-The objective is to see if the trait EBV has an effect and if its effects are
-different in different milking types (OAD and TAD).
+# Simple model within each survival and milk_type levels
 
-```{r interaction shapeshift}
-coef_glms <- lapply(dir(fileDir, "coef_glm_x_s"), function(i) {
-  return(read.csv(paste0(fileDir, i), header = T) %>%
-           rename(Trait = X) %>%
-           mutate(sign = ifelse(is.na(sign), "", 
-                                ifelse(sign==".", "+", sign)),
-                  predictor = Trait))
-})
+e.g. `glm(formula = s12 ~ cg + Trait, family = gaussian(link = "identity"),  ...)`
 
-anova_glms <- lapply(dir(fileDir, "anova_glm_x_s"), function(i) {
-  return(read.csv(paste0(fileDir, i), header = T) %>% 
+```{r read_simple_model}
+
+test <- lapply(c("EBV", "GBV"), function(bv) {
+  coef_glms <- lapply(dir(paste0(fileDir, bv, "/"), "coef_glm_s"), function(i) {
+    return(read.csv(paste0(fileDir, bv, "/", i), header = T) %>% 
+           rename(Trait = X) %>% 
+          mutate(sign = ifelse(is.na(sign), "", 
+                                ifelse(sign==".", ".", sign)),
+                  predictor = Trait,
+                 evaluation = bv))
+    })
+
+  anova_glms <- lapply(dir(paste0(fileDir, bv, "/"), "anova_glm_s"), function(i) {
+    return(read.csv(paste0(fileDir, bv, "/", i), header = T) %>% 
            rename(Trait = X) %>% 
            mutate(sign = ifelse(is.na(sign), "", 
-                                ifelse(sign==".", "+", sign)),
-                  predictor = Trait))
+                                ifelse(sign==".", ".", sign)),
+                  predictor = Trait,
+                  evaluation = bv))
+    })
+
+  df_coef_glms <- do.call(rbind, coef_glms)
+  df_anova_glms <- do.call(rbind, anova_glms)
+  
+  # change trait
+  df_coef_glms$Trait <- gsub(paste0(bv, "_"), "", df_coef_glms$Trait)
+  df_coef_glms$predictor <- gsub(paste0(bv, "_"), "", df_coef_glms$predictor)
+  df_anova_glms$Trait <- gsub(paste0(bv, "_"), "", df_anova_glms$Trait)
+  df_anova_glms$predictor <- gsub(paste0(bv, "_"), "", df_anova_glms$predictor)
+
+  if(grepl("Chi", names(df_anova_glms)) %>% sum()>0) {
+    names(df_anova_glms)[5] <- "Resid..Dev"
+    names(df_anova_glms)[6] <- "p-value"
+    df_anova_glms$sign <- ifelse(df_anova_glms$`p-value`<0.001, "***", 
+                           ifelse(df_anova_glms$`p-value`<0.01, "**",
+                                  ifelse(df_anova_glms$`p-value`<0.05, "*",
+                                         ifelse(df_anova_glms$`p-value`<0.1, ".",""))))
+  
+    df_anova_glms <- df_anova_glms %>% 
+      select(Trait, Df, Deviance, Resid..Df, Resid..Dev, `p-value`, sign, milk_type,
+             survival)
+  }
+  return(list(coef =  df_coef_glms, anova = df_anova_glms))
 })
 
-df_coef_glms <- do.call(rbind, coef_glms)
-df_anova_glms <- do.call(rbind, anova_glms)
+names(test) <- c("ebv", "gbv")
 
-# change Trait
-idx <- grep("^EBV", df_anova_glms$predictor)
-idx1 <- grep("NULL", df_anova_glms$predictor)
-d <- diff(idx1) %>% unique()
-for(i in seq(idx1)) {
-  df_anova_glms$Trait[idx1[i]:(idx1[i]+d-1)] <- df_anova_glms$predictor[idx[i]]
-}
+df_coef_glms_EBV <- test$ebv$coef
+df_coef_glms_GBV <- test$gbv$coef
 
-# convert anova output
-print_anova <- filter(df_anova_glms, !grepl("NULL|cg|type[0-9]*$", predictor)) %>% 
-  mutate(R2 = Deviance/(Resid..Dev+Deviance)) %>% 
-  select(Trait, predictor, R2, sign, survival) %>% 
-  pivot_wider(id_cols = matches("Trait|predi"), 
-              names_from = survival, values_from = c(R2, sign), 
-              names_glue = "{survival}_{.value}") %>% 
-  select(Trait, predictor, matches("s12"), matches("s23"), 
-         matches("s34"), matches("s45")) %>% 
-  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
-    round(.x), formatC(.x, digits = 2, format = "fg"))))
+df_anova_glms_EBV <- test$ebv$anova
+df_anova_glms_GBV <- test$gbv$anova
+  
+# df_anova_glms <- df_anova_glms %>% 
+#            mutate(sign = ifelse(is.na(sign), "", sign))
 
-# change Trait
-idx <- grep("^new", df_coef_glms$predictor)
-d <- diff(idx) %>% unique()
-for(i in seq(idx)) {
-  df_coef_glms$Trait[(idx[i]-d+1):idx[i]] <- df_coef_glms$predictor[idx[i]-d+1]
-}
- 
-# convert coef output
-print_coef <- df_coef_glms %>% 
-  select(Trait, predictor, Estimate, sign, survival) %>% 
-  pivot_wider(id_cols = matches("Trait|predi"), 
-              names_from = survival, values_from = c(Estimate, sign), 
-              names_glue = "{survival}_{.value}") %>% 
-  select(Trait, predictor, matches("s12"), matches("s23"), 
-         matches("s34"), matches("s45")) %>% 
-  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
-    round(.x), formatC(.x, digits = 2, format = "fg"))))
 ```
 
-## Coefficients
+#> ## OAD only, Coefficients for all traits' EBVs
 
-The reference (intercept) is OAD + trait\*OAD, thus only the coefficients of 
-Trait and Trait\*TAD are used to test against the reference. 
+```{r, echo=FALSE, eval=FALSE}
+# CONVERT COEF OUTPUT
+print_coef <- select(df_coef_glms, -matches("value")) %>% 
+  pivot_wider(names_from = milk_type, values_from = c(Estimate, Std..Error, sign),
+               names_glue = "{milk_type}_{.value}") %>% 
+  select(survival, Trait, matches("OAD"), matches("TAD"), 
+         matches("s12"), matches("s23"), matches("s34"), matches("s45")) %>% 
+  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
+    round(.x),formatC(.x, digits = 2, format = "fg"))
+    ))
 
-```{r}
-knitr::kable(print_coef, align = "l",
-             format.args = list(big.mark = ","), 
-             caption = "Linear regression model coeficient statistics" )%>% 
+select(print_coef, survival, Trait, matches("OAD")) %>% 
+  knitr::kable(format.args = list(big.mark=","), align = "l",
+             caption = "Linear regression coefficient statistics") %>% 
   kable_styling(fixed_thead = T)
-
-# write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
-          # row.names = F, quote = F)
-write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
-          row.names = F, quote = F)
 ```
+
+## Coefficients for all trait EBVs within milking types
+
+### EBV and GEBV
+
+#### Essential traits
+
+##### TAD and OAD only
+
+```{r simple_model_coef, fig.show='asis', fig.height=12, fig.width=8}
+invisible( # avoind printing lapply outputs e.g. [1][[1]] [2][[2]]
+  lapply(c("EBV", "GBV"), function(bv) {
+ # lapply(seq(essential_traits), function(i) {
+    
+    df <- get(paste0("df_coef_glms_", bv)) %>% 
+          #   filter(Trait == essential_traits[i]) %>% 
+        filter(Trait %in% essential_traits) %>% 
+             mutate(milk_type = 
+                      factor(milk_type, 
+                             levels = c("TAD", setdiff(unique(milk_type), "TAD")
+                                        ))) %>% 
+      filter(as.integer(milk_type)<=2)
+   # color <- ifelse(i==length(essential_traits), "black", "white")
+    
+    p <- ggplot(#get(paste0("df_coef_glms_", bv)) %>%
+           #filter(Trait %in% essential_traits),
+      df,
+         aes(survival, Estimate, fill = milk_type)) +
+    geom_bar(stat="identity", color="black", position = position_dodge(.9)) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position=position_dodge(.9)) +
+      # ylim(min(c(min(df$Estimate)-max(abs(df$Std..Error)), 0)),
+             # max(df$Estimate)+max(abs(df$Std..Error))) +
+               #diff(range(df$Estimate+df$Std..Error))/100 +
+    geom_text(aes(y = Estimate+Std..Error, label = sign),
+              position = position_dodge(.9)
+              #, vjust = -diff(range(df$Estimate))/100
+              ) +
+    labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
+                        # essential_traits[i]),
+         # x = "", y = ""
+         ) +
+    facet_grid(Trait~., scales = "free_y") +
+    # scale_fill_brewer(palette = "Set3") +
+    scale_fill_manual(values =
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$milk_type)-1, "Set3"))) +
+    theme_pubclean() # +
+      # theme(legend.position = ifelse(i==1, "top", "none"),
+            # axis.text.x = element_text(color = color)
+            # )
+    print(p)
+ # })
+})
+)
+
+```
+
 *Foot notes for the signs of P-values:*  
 \*\*\*: $p<0.001$  
 \*\*: $0.001 \le p<0.01$  
 \*: $0.01 \le p<0.05$  
 .: $0.05 \le p<0.1$  
 
-## Model powers
+##### All 5 milking types
 
-This is an ANOVA and Chi-sq test of the model predictors, to show if the trait
-and interaction terms are significantly different.
+```{r simple_model_coef1, fig.show='asis', fig.height=12, fig.width=8}
 
-Because new_milk_type is always insignificant in all models, the result isn't
-shown in the table.
-
-```{r}
-knitr::kable(print_anova, align = "l",
-             format.args = list(big.mark = ","), 
-             caption = "Linear regression model statistics (ANOVA+Chi-sq)" )%>% 
-  kable_styling(fixed_thead = T)
-
-# write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
-          # row.names = F, quote = F)
-write.csv(print_anova, paste0(fileDir, "anova_glm_x_all.csv"), 
-          row.names = F, quote = F)
+invisible(
+  lapply(c("EBV", "GBV"), function(bv) {
+ # lapply(seq(essential_traits), function(i) {
+    
+    df <- get(paste0("df_coef_glms_", bv)) %>% 
+          #   filter(Trait == essential_traits[i]) %>% 
+        filter(Trait %in% essential_traits) %>% 
+             mutate(milk_type = 
+                      factor(milk_type, 
+                             levels = c("TAD", setdiff(unique(milk_type), "TAD")
+                                        )))
+   # color <- ifelse(i==length(essential_traits), "black", "white")
+    
+    p <- ggplot(#get(paste0("df_coef_glms_", bv)) %>%
+           #filter(Trait %in% essential_traits),
+      df,
+         aes(survival, Estimate, fill = milk_type)) +
+    geom_bar(stat="identity", color="black", position = position_dodge(.9)) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position=position_dodge(.9)) +
+      # ylim(min(c(min(df$Estimate)-max(abs(df$Std..Error)), 0)),
+             # max(df$Estimate)+max(abs(df$Std..Error))) +
+               #diff(range(df$Estimate+df$Std..Error))/100 +
+    geom_text(aes(y = Estimate+Std..Error, label = sign),
+              position = position_dodge(.9)
+              #, vjust = -diff(range(df$Estimate))/100
+              ) +
+    labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
+                        # essential_traits[i]),
+         # x = "", y = ""
+         ) +
+    facet_grid(Trait~., scales = "free_y") +
+    # scale_fill_brewer(palette = "Set3") +
+    scale_fill_manual(values =
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$milk_type)-1, "Set3"))) +
+    theme_pubclean() # +
+      # theme(legend.position = ifelse(i==1, "top", "none"),
+            # axis.text.x = element_text(color = color)
+            # )
+    print(p)
+ # })
+})
+)
 ```
 
+#### Other traits
 
-# EBV only model within each survival and milk_type levels
+Transformation of nonlinear trait evaluations do not seems to have more power
+in the model (new value = old value + old value^2)
 
-e.g. `glm(formula = s12 ~ cg + Trait, family = gaussian(link = "identity"),  ...)`
+```{r simple_model_coef_other, fig.show='asis', fig.height=60, fig.width=8}
 
-```{r shapeshift}
-
-coef_glms <- lapply(dir(fileDir, "coef_glm_s"), function(i) {
-  return(read.csv(paste0(fileDir, i), header = T) %>% 
-           rename(Trait = X) %>% 
-          mutate(sign = ifelse(is.na(sign), "", 
-                                ifelse(sign==".", "+", sign)),
-                  predictor = Trait))
+invisible(
+  lapply(c("EBV", "GBV"), function(bv) {
+ # lapply(seq(essential_traits), function(i) {
+    
+    df <- get(paste0("df_coef_glms_", bv)) %>% 
+          #   filter(Trait == essential_traits[i]) %>% 
+        filter(!Trait %in% essential_traits) %>% 
+             mutate(milk_type = 
+                      factor(milk_type, 
+                             levels = c("TAD", setdiff(unique(milk_type), "TAD")
+                                        )))
+   # color <- ifelse(i==length(essential_traits), "black", "white")
+    
+    p <- ggplot(#get(paste0("df_coef_glms_", bv)) %>%
+           #filter(Trait %in% essential_traits),
+      df,
+         aes(survival, Estimate, fill = milk_type)) +
+    geom_bar(stat="identity", color="black", position = position_dodge(.9)) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position=position_dodge(.9)) +
+      # ylim(min(c(min(df$Estimate)-max(abs(df$Std..Error)), 0)),
+             # max(df$Estimate)+max(abs(df$Std..Error))) +
+               #diff(range(df$Estimate+df$Std..Error))/100 +
+    geom_text(aes(y = Estimate+Std..Error, label = sign),
+              position = position_dodge(.9) #,
+              #, vjust = -diff(range(df$Estimate))/100
+              ) +
+    labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
+                        # essential_traits[i]),
+         # x = "", y = ""
+         ) +
+    facet_grid(Trait~., scales = "free_y") +
+    # scale_fill_brewer(palette = "Set3") +
+    scale_fill_manual(values =
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$milk_type)-1, "Set3"))) +
+    theme_pubclean() # +
+      # theme(legend.position = ifelse(i==1, "top", "none"),
+            # axis.text.x = element_text(color = color)
+            # )
+    print(p)
+ # })
 })
+)
+```
 
-anova_glms <- lapply(dir(fileDir, "anova_glm_s"), function(i) {
-  return(read.csv(paste0(fileDir, i), header = T) %>% 
-           rename(Trait = X) %>% 
-           mutate(sign = ifelse(is.na(sign), "", 
-                                ifelse(sign==".", "+", sign)),
-                  predictor = Trait))
-})
+### Comparison EBV vs GEBV
 
-df_coef_glms <- do.call(rbind, coef_glms)
-df_anova_glms <- do.call(rbind, anova_glms)
+#### Essential traits 
 
-if(grepl("Chi", names(df_anova_glms)) %>% sum()>0) {
-  names(df_anova_glms)[5] <- "Resid..Dev"
-  names(df_anova_glms)[6] <- "p-value"
-  df_anova_glms$sign <- ifelse(df_anova_glms$`p-value`<0.001, "***", 
-                           ifelse(df_anova_glms$`p-value`<0.01, "**",
-                                  ifelse(df_anova_glms$`p-value`<0.05, "*",
-                                         ifelse(df_anova_glms$`p-value`<0.1, "+",""))))
-  
-  df_anova_glms <- df_anova_glms %>% 
-    select(Trait, Df, Deviance, Resid..Df, Resid..Dev, `p-value`, sign, milk_type,
-           survival)
-  
-} 
-  
-# df_anova_glms <- df_anova_glms %>% 
-#            mutate(sign = ifelse(is.na(sign), "", sign))
+```{r coef_ebv_gbv_simple, fig.width=8, fig.height=12}
+
+df <- rbind(df_coef_glms_EBV, df_coef_glms_GBV)
+write.csv(df, paste0(outputDir, "coef_glm_all.csv"))
+
+df_sub <- filter(df, Trait %in% essential_traits) %>% 
+  mutate(milk_type = 
+           factor(milk_type, 
+                  levels = c("TAD", setdiff(unique(milk_type), "TAD"))))
+
+ggplot(df_sub, aes(x = survival, y = Estimate, fill = evaluation)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    facet_grid(Trait~milk_type, scales = "free") +
+  scale_fill_brewer(palette = "Paired") +
+  theme_pubclean() # +
+```
+
+#### Other traits 
+
+```{r coef_ebv_gbv_simple_other, fig.width=8, fig.height=60}
+
+df_sub <- filter(df, !Trait %in% essential_traits) %>% 
+  mutate(milk_type = 
+           factor(milk_type, 
+                  levels = c("TAD", setdiff(unique(milk_type), "TAD"))))
+
+ggplot(df_sub, aes(x = survival, y = Estimate, fill = evaluation)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    facet_grid(Trait~milk_type, scales = "free") +
+  scale_fill_brewer(palette = "Paired") +
+  theme_pubclean() # +
+```
+
+## Model powers
+
+```{r, eval=FALSE}
 
 # convert anova output
 print_anova <- filter(df_anova_glms, grepl("EBV", Trait)) %>% 
@@ -229,43 +386,259 @@ print_anova <- filter(df_anova_glms, grepl("EBV", Trait)) %>%
   mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
     round(.x),formatC(.x, digits = 2, format = "fg"))))
 
-print_coef <- select(df_coef_glms, -matches("value")) %>% 
-  pivot_wider(names_from = milk_type, values_from = c(Estimate, Std..Error, sign),
-               names_glue = "{milk_type}_{.value}") %>% 
-  select(survival, Trait, matches("OAD"), matches("TAD"), 
-         matches("s12"), matches("s23"), matches("s34"), matches("s45")) %>% 
-  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
-    round(.x),formatC(.x, digits = 2, format = "fg"))
-    ))
-```
-
-## OAD only, Coefficients for all traits' EBVs
-
-```{r}
-select(print_coef, survival, Trait, matches("OAD")) %>% 
-  knitr::kable(format.args = list(big.mark=","), align = "l",
-             caption = "Linear regression coefficient statistics") %>% 
-  kable_styling(fixed_thead = T)
-```
-
-## All milking type, coefficients for all trait EBVs
-
-```{r}
-knitr::kable(print_coef, align = "l",
-             format.args = list(big.mark=","),
-             caption = "Linear regression coefficient statistics") %>% 
-  kable_styling(fixed_thead = T)
-```
-
-## Model powers
-
-```{r}
 knitr::kable(print_anova, digits = 3, align = "l",
              caption = "Linear regression model statistics (ANOVA+Chi-sq)" )%>% 
   kable_styling(fixed_thead = T)
 
-write.csv(print_coef, paste0(fileDir, "coef_glm_all.csv"), row.names = F, quote = F)
-write.csv(print_anova, paste0(fileDir, "anova_glm_all.csv"), row.names = F, quote = F)
+# write.csv(print_coef, paste0(fileDir, "coef_glm_all.csv"), row.names = F, quote = F)
+# write.csv(print_anova, paste0(fileDir, "anova_glm_all.csv"), row.names = F, quote = F)
+```
+
+# Trait and milk_type interaction model
+
+e.g. `glm(formula = s12 ~ cg + Trait + milk_type + Trait*milk_type, family = gaussian(link = "identity"),  ...)`  
+Only look at OAD and TAD. Each model takes up to 10 min to run.  
+The objective is to see if the trait EBV has an effect and if its effects are
+different in different milking types (OAD and TAD).
+
+```{r read_interaction_model}
+test <- lapply(c("EBV", "GBV"), function(bv) {
+  coef_glms <- lapply(dir(paste0(fileDir, bv, "/"), "coef_glm_x_s"), function(i) {
+    return(read.csv(paste0(fileDir, bv, "/", i), header = T) %>%
+           rename(Trait = X) %>%
+           mutate(sign = ifelse(is.na(sign), "", 
+                                ifelse(sign==".", ".", sign)),
+                  predictor = Trait))
+    })
+  
+  anova_glms <- lapply(dir(paste0(fileDir, bv, "/"), "anova_glm_x_s"), 
+                       function(i) {
+    return(read.csv(paste0(fileDir, bv, "/", i), header = T) %>% 
+             rename(Trait = X) %>% 
+           mutate(sign = ifelse(is.na(sign), "", 
+                                ifelse(sign==".", ".", sign)),
+                  predictor = Trait))
+    })
+
+  df_coef_glms <- do.call(rbind, coef_glms)
+  df_anova_glms <- do.call(rbind, anova_glms)
+  
+  # change Trait
+  idx <- grep(paste0("^", bv), df_anova_glms$predictor)
+  idx1 <- grep("NULL", df_anova_glms$predictor)
+  d <- diff(idx1) %>% unique()
+  for(i in seq(idx1)) {
+    df_anova_glms$Trait[idx1[i]:(idx1[i]+d-1)] <- df_anova_glms$predictor[idx[i]]
+  }
+  df_anova_glms$Trait <- gsub(paste0(bv, "_"), "", df_anova_glms$Trait)
+
+  idx <- grep("^new", df_coef_glms$predictor)
+  d <- diff(idx) %>% unique()
+  for(i in seq(idx)) {
+    df_coef_glms$Trait[(idx[i]-d+1):idx[i]] <- df_coef_glms$predictor[idx[i]-d+1]
+  }
+  df_coef_glms$Trait <- gsub(paste0(bv, "_"), "", df_coef_glms$Trait)
+  
+  # change predictor
+  df_anova_glms$predictor[df_anova_glms$predictor=="new_milk_type"] <- 
+    "milking_type"
+  df_anova_glms$predictor[df_anova_glms$predictor==
+                            paste0(bv, "_", df_anova_glms$Trait)] <- "Trait"
+  df_anova_glms$predictor[grepl(":", df_anova_glms$predictor)] <- 
+    "Trait_x_milking_type"
+  
+  idx <- seq(1, nrow(df_coef_glms), by = 2) # odd value
+  df_coef_glms$predictor[idx] <- "Trait"
+  df_coef_glms$predictor[idx+1] <- "Trait_x_OAD"
+  
+  return(list(coef = df_coef_glms, anova = df_anova_glms))
+})
+names(test) <- c("ebv", "gbv")
+
+df_coef_glms_EBV <- test$ebv$coef
+df_coef_glms_GBV <- test$gbv$coef
+
+df_anova_glms_EBV <- test$ebv$anova
+df_anova_glms_GBV <- test$gbv$anova
+```
+
+## Coefficients
+
+In the model, the contrast levels are cg, TAD, OAD, trait\*TAD and trait\*OAD.
+The reference (intercept) is TAD cows, i.e., TAD=0 and OAD=1, so
+TAD+trait\*TAD=0. OAD effect isn't in the modeling function output, probably
+because OAD effect by itself is hard to interpret.
+Therefore, only the coefficients of Trait and Trait\*OAD are used to test 
+against the reference (CG effect omit here). 
+
+For example, if s12=$\mu$+0.03\*functional survival+0.01\*functional survival
+\*milking type (CG effect omit here), then it means when the milking type is TAD,
+the effect of functional survival is 0.03, and s12=$\mu$+0.03. However, when the 
+milking type is OAD, the effect of functional survival is 0.03+0.01, and s12=
+$\mu$+0.04.
+
+The stars mean if their effects are significant in the model.
+
+### EBV and GBV
+
+#### Essential traits
+
+```{r coef, fig.width=8, fig.height=12}
+# bv <- "EBV"
+
+invisible(lapply(c("EBV", "GBV"), function(bv) {
+  p <- ggplot(get(paste0("df_coef_glms_", bv)) %>% 
+                filter(Trait %in% essential_traits), 
+              aes(x = survival, y = Estimate, fill = predictor)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    labs(title = bv) +
+    facet_grid(Trait~., scales = "free_y") +
+  scale_fill_brewer(palette = "Set3") +
+  theme_pubclean() # +
+    # theme(legend.position = "none")
+print(p)
+}))
+
+
+```
+
+#### Other traits
+
+Transformation of nonlinear trait evaluations do not seems to have more power
+in the model (new value = old value + old value^2)
+
+```{r coef_other, fig.width=8, fig.height=60}
+# bv <- "EBV"
+
+invisible(lapply(c("EBV", "GBV"), function(bv) {
+  p <- ggplot(get(paste0("df_coef_glms_", bv)) %>% 
+                filter(!Trait %in% essential_traits), 
+              aes(x = survival, y = Estimate, fill = predictor)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    labs(title = bv) +
+    facet_grid(Trait~., scales = "free_y") +
+  scale_fill_brewer(palette = "Set3") +
+  theme_pubclean() # +
+    # theme(legend.position = "none")
+print(p)
+}))
+```
+
+
+```{r coef_table, echo=FALSE, eval=FALSE}
+ 
+# convert coef output
+print_coef <- df_coef_glms %>% 
+  select(Trait, predictor, Estimate, sign, survival) %>% 
+  pivot_wider(id_cols = matches("Trait|predi"), 
+              names_from = survival, values_from = c(Estimate, sign), 
+              names_glue = "{survival}_{.value}") %>% 
+  select(Trait, predictor, matches("s12"), matches("s23"), 
+         matches("s34"), matches("s45")) %>% 
+  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
+    round(.x), formatC(.x, digits = 2, format = "fg"))))
+
+knitr::kable(print_coef, align = "l",
+             format.args = list(big.mark = ","), 
+             caption = "Linear regression model coeficient statistics" )%>% 
+  kable_styling(fixed_thead = T)
+
+# write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
+          # row.names = F, quote = F)
+# write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
+          # row.names = F, quote = F)
+```
+
+### Comparison EBV vs GEBV
+
+#### Essential traits
+
+```{r coef_ebv_gbv, fig.width=8, fig.height=12}
+
+df_coef_glms_EBV$evaluation <- "EBV"
+df_coef_glms_GBV$evaluation <- "GEBV"
+
+df <- rbind(df_coef_glms_EBV, df_coef_glms_GBV) # %>% 
+ # filter(predictor == "Trait_x_OAD")
+write.csv(df, paste0(outputDir, "coef_glm_x_all.csv"))
+
+ggplot(filter(df, Trait %in% essential_traits),
+       aes(x = survival, y = Estimate, fill = evaluation)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    facet_grid(Trait~predictor, scales = "free_y") +
+  scale_fill_brewer(palette = "Paired") +
+  theme_pubclean() # +
+```
+
+#### Other traits
+
+```{r coef_ebv_gbv_other, fig.width=8, fig.height=60}
+
+ggplot(filter(df, !Trait %in% essential_traits),
+       aes(x = survival, y = Estimate, fill = evaluation)) + 
+    geom_bar(stat = "identity", color = "black", 
+             position = position_dodge()) +
+    geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  width=.2, position = position_dodge(.9)) +
+    geom_text(aes(y = Estimate+Std..Error, label = sign), 
+              position = position_dodge(.9)) +
+    facet_grid(Trait~predictor, scales = "free_y") +
+  scale_fill_brewer(palette = "Paired") +
+  theme_pubclean() # +
+```
+
+## Model powers
+
+This is an ANOVA and Chi-sq test of the model predictors, to show if the trait
+and interaction terms are significantly different.
+
+Because new_milk_type is always insignificant in all models, the result isn't
+shown in the table.
+
+```{r, eval=FALSE,echo=FALSE}
+# convert anova output
+print_anova <- filter(df_anova_glms, !grepl("NULL|cg|type[0-9]*$", predictor)) %>% 
+  mutate(R2 = Deviance/(Resid..Dev+Deviance)) %>% 
+  select(Trait, predictor, R2, sign, survival) %>% 
+  pivot_wider(id_cols = matches("Trait|predi"), 
+              names_from = survival, values_from = c(R2, sign), 
+              names_glue = "{survival}_{.value}") %>% 
+  select(Trait, predictor, matches("s12"), matches("s23"), 
+         matches("s34"), matches("s45")) %>% 
+  mutate(across(where(is.numeric), ~ifelse(.x==round(.x),
+    round(.x), formatC(.x, digits = 2, format = "fg"))))
+
+knitr::kable(print_anova, align = "l",
+             format.args = list(big.mark = ","), 
+             caption = "Linear regression model statistics (ANOVA+Chi-sq)" )%>% 
+  kable_styling(fixed_thead = T)
+
+# write.csv(print_coef, paste0(fileDir, "coef_glm_x_all.csv"), 
+          # row.names = F, quote = F)
+# write.csv(print_anova, paste0(fileDir, "anova_glm_x_all.csv"), 
+          # row.names = F, quote = F)
+```
+
+```{r, echo=FALSE, eval=FALSE}
+knitr::kable(print_coef, align = "l",
+             format.args = list(big.mark=","),
+             caption = "Linear regression coefficient statistics") %>% 
+  kable_styling(fixed_thead = T)
 ```
 
 
