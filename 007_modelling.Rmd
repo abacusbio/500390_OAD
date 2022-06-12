@@ -47,22 +47,6 @@ full_df <- readRDS(
 names(full_df)
 ```
 
-## make nonlinear traits
-
-```{r nonlinear, cache = TRUE}
-t <- Sys.time()
-for(i in grep("EBV_TOP_", names(full_df), value = T)) {
-  full_df[,paste0(i, "2")] <- full_df[[i]]^2+full_df[[i]]
-}
-print(Sys.time()-t)
-
-for(i in grep("GBV_TOP_", names(full_df), value = T)) {
-  full_df[,paste0(i, "2")] <- full_df[[i]]^2+full_df[[i]]
-}
-
-print(grep("BV", names(full_df), value = T))
-```
-
 ## Down sample due to too many herds that uses up all memories
 
 Down sample total herd size to 1000, otherwise will use up all the memories.
@@ -87,7 +71,7 @@ TAD herd size to 296. See `0062_sumstat.rmd`
 # }
 # idx <- unlist(idx)
 # df_downsample <- full_df[sort(idx),]
-set.seed(123)
+set.seed(1)
 idx_leftover <- which(full_df$new_milk_type!="TAD")
 idx_tad <- which(full_df$new_milk_type=="TAD")
 herd_tad <- full_df$HerdDurableKey[idx_tad] %>% unique()
@@ -109,20 +93,55 @@ df_downsample <- readRDS(paste0(outputDir, "df_downsample.RData"))
 ```
 
 ```{r downsample statistics}
+# cat("Downsampled dataset has", nrow(df_downsample), "events,",
+#     unique(df_downsample$AnimalDurableCode) %>% length(), "cows, and",
+#     unique(df_downsample$HerdDurableKey) %>% length(), "herds.")
+
+# table(df_downsample$new_milk_type)
+
+sum_herd <- group_by(df_downsample, new_milk_type, HerdDurableKey) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(new_milk_type) %>% summarise(n_herd = n()) 
+sum_cow <- select(df_downsample, new_milk_type, AnimalDurableCode) %>% 
+  distinct() %>% 
+  group_by(new_milk_type) %>% 
+  tally() %>% 
+  rename(n_cow = n)
+sum_event <- group_by(df_downsample, new_milk_type) %>% 
+  tally() %>% 
+  rename(n_event = n)
+left_join(sum_herd, sum_cow) %>% 
+  left_join(sum_event) %>% 
+  knitr::kable(format.args = list(big.mark = ","), 
+               caption = "down sampled data summary statistics") %>% 
+  kableExtra::kable_styling()
+
+```
+
+## create CG
+
+```{r create_cg}
 rm(list=ls(pattern = "full_df"))
-cat("Downsampled dataset has", nrow(df_downsample), "events,",
-    unique(df_downsample$AnimalDurableCode) %>% length(), "cows, and",
-    unique(df_downsample$HerdDurableKey) %>% length(), "herds.")
-
-table(df_downsample$new_milk_type)
-
-group_by(df_downsample, new_milk_type, HerdDurableKey) %>% 
-  summarise(count = n()) %>% 
-  ungroup() %>% group_by(new_milk_type) %>% tally()
-
 df_downsample <- mutate(df_downsample, 
                         cg = paste0(HerdDurableKey, "_", DairyYear))
 ```
+
+## make nonlinear traits
+
+```{r make_nonlinear_traits, cache = TRUE}
+t <- Sys.time()
+for(i in grep("EBV_TOP_", names(df_downsample), value = T)) {
+  df_downsample[,paste0(i, "2")] <- df_downsample[[i]]^2+df_downsample[[i]]
+}
+print(Sys.time()-t)
+
+for(i in grep("GBV_TOP_", names(df_downsample), value = T)) {
+  df_downsample[,paste0(i, "2")] <- df_downsample[[i]]^2+df_downsample[[i]]
+}
+
+print(grep("BV", names(df_downsample), value = T))
+```
+
 ## Model
 
 ### Two model distribution choices
@@ -451,7 +470,7 @@ cat("Finish stack_with_survival. Used "); print(Sys.time()-t)
 } # end function
 
 # lapply will use up memories and crash
-for(i in 2:5) {
+for(i in 2:6) {
 cat("\n", paste0("s", i-1, i), "\n")
   df_model <- select(df_downsample, AnimalDurableCode, HerdDurableKey, 
                    DairyYear, AgeParity,cg, new_milk_type, 
@@ -559,7 +578,7 @@ cat("Finish stack_with_survival. Used "); print(Sys.time()-t)
 } # end function
 
 # lapply will use up memories and crash
-for(i in 2:5) {
+for(i in 2:6) {
 cat("\n", paste0("s", i-1, i), "\n")
   df_model <- select(df_downsample, AnimalDurableCode, HerdDurableKey, 
                    DairyYear, AgeParity,cg, new_milk_type, 
@@ -597,10 +616,4 @@ rmarkdown::render(output_dir = outputDir,
                   input = rstudioapi::getSourceEditorContext()$path)
 ```
 
-## Figures
 
-The figure sizes have been customised so that you can easily put two images side-by-side. 
-
-```{r, fig.show='hold', eval=FALSE}
-
-```

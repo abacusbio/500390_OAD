@@ -122,44 +122,81 @@ survival <- mclapply(getMKLthreads()/2, l_env = c("idx", "test"),
                     s12 = ifelse(test$AgeParity[(idx[i+1]-1)]>=3, T, F),
                     s23 = ifelse(test$AgeParity[(idx[i+1]-1)]>=4, T, F),
                     s34 = ifelse(test$AgeParity[(idx[i+1]-1)]>=5, T, F),
-                    s45 = ifelse(test$AgeParity[(idx[i+1]-1)]>=6, T, F))
+                    s45 = ifelse(test$AgeParity[(idx[i+1]-1)]>=6, T, F),
+                    s56 = ifelse(test$AgeParity[(idx[i+1]-1)]>=7, T, F), # 9June2022
+                    s67 = ifelse(test$AgeParity[(idx[i+1]-1)]>=8, T, F)) # not necessary
   
-  # missing value for AgeParity 2s
-  if(2021 %in% test$DairyYear[idx[i+1]-1]) {
-    if(test$AgeParity[idx[i+1]-1]==2) {
-      out[1,2:5] <- NA
+  # fill in missing value for AgeParity 2s
+  if(2021 %in% test$DairyYear[idx[i+1]-1]) { # last year is 2021
+    if(test$AgeParity[idx[i+1]-1]==2) {      # last year age==2
+      out[1,2:7] <- NA                       # survival 12 and later should be unknown
       
-    } else if(test$AgeParity[idx[i+1]-1]==3) {
-      out[1, 3:5] <- NA
+    } else if(test$AgeParity[idx[i+1]-1]==3) { # last year age==3
+      out[1, 3:7] <- NA                        # survival 23 and later unknown
       
     } else if(test$AgeParity[idx[i+1]-1]==4) {
-      out[1,4:5] <- NA
+      out[1,4:7] <- NA
       
     } else if(test$AgeParity[idx[i+1]-1]==5) {
-      out[1,5] <- NA
-    }
+      out[1,5:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==6) {
+      out[1,6:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==7) {
+      out[1,7] <- NA
+    } 
   } else if(2020 %in% test$DairyYear[idx[i+1]-1]) {
     if(test$AgeParity[idx[i+1]-1]==2) {
-      out[1, 3:5] <- NA
+      out[1, 3:7] <- NA
       
     } else if(test$AgeParity[idx[i+1]-1]==3) {
-      out[1,4:5] <- NA
+      out[1,4:7] <- NA
       
     } else if(test$AgeParity[idx[i+1]-1]==4) {
-      out[1,5] <- NA
-    }
+      out[1,5:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==5) {
+      out[1,6:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==6) {
+      out[1,7] <- NA
+    } 
   } else if(2019 %in% test$DairyYear[idx[i+1]-1]) {
     if(test$AgeParity[idx[i+1]-1]==2) {
-      out[1,4:5] <- NA
+      out[1,4:7] <- NA
       
     } else if(test$AgeParity[idx[i+1]-1]==3) {
-      out[1,5] <- NA
-    }
+      out[1,5:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==4) {
+      out[1,6:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==5) {
+      out[1,7] <- NA
+    } 
   } else if(2018 %in% test$DairyYear[idx[i+1]-1]) {
     if(test$AgeParity[idx[i+1]-1]==2) {
-      out[1,5] <- NA
+      out[1,5:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==3) {
+      out[1,6:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==4) {
+      out[1,7] <- NA
     }
-  }
+  } else if(2017 %in% test$DairyYear[idx[i+1]-1]) {
+    if(test$AgeParity[idx[i+1]-1]==2) {
+      out[1,6:7] <- NA
+      
+    } else if(test$AgeParity[idx[i+1]-1]==3) {
+      out[1,7] <- NA
+    }
+  } else if(2016 %in% test$DairyYear[idx[i+1]-1]) {
+    if(test$AgeParity[idx[i+1]-1]==2) {
+      out[1,7] <- NA
+    }
+  } 
   return(out)
 })
 print(Sys.time()-t) # lapply: 14 min, mclapply: 2.5 min
@@ -174,6 +211,11 @@ survival <- filter(survival_original, !is.na(s12)) # 2393502, 93.017%
 survival$s23[which(is.na(survival$s12) | survival$s12==F)] <- NA
 survival$s34[which(is.na(survival$s23) | survival$s23==F)] <- NA
 survival$s45[which(is.na(survival$s34) | survival$s34==F)] <- NA
+survival$s56[which(is.na(survival$s45) | survival$s45==F)] <- NA
+survival$s67[which(is.na(survival$s56) | survival$s56==F)] <- NA
+
+# don't need s67. all dead or unknown
+survival <- survival[,-ncol(survival)]
 
 # summary
 summary_table <- sapply(survival[,-1], table, useNA = "always") %>% 
@@ -182,10 +224,11 @@ summary_table <- rbind(summary_table,
                         summary_table[2,]/apply(summary_table[1:2,], 2, sum))
 rownames(summary_table)[4] <- "survival rate"
 summary_table
-# FALSE.        5.941440e+05 4.376110e+05 3.280460e+05 2.776530e+05
-# TRUE.         2.345358e+06 1.725693e+06 1.256377e+06 8.720460e+05
-# NA.           0.000000e+00 7.761980e+05 1.355079e+06 1.789803e+06
-# survival rate 7.978760e-01 7.977117e-01 7.929555e-01 7.584994e-01
+#               s12          s23          s34          s45          s56
+# FALSE.        5.941440e+05 4.376110e+05 3.280460e+05 2.776530e+05 2.340230e+05
+# TRUE.         2.345358e+06 1.725693e+06 1.256377e+06 8.720460e+05 5.606390e+05
+# NA.           0.000000e+00 7.761980e+05 1.355079e+06 1.789803e+06 2.144840e+06
+# survival rate 7.978760e-01 7.977117e-01 7.929555e-01 7.584994e-01 7.055062e-01
 write.csv(summary_table, paste0(outputDir, "survival_rate.csv"))
 
 df_new <- left_join(df_new, survival) %>% 

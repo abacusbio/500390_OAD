@@ -39,19 +39,19 @@ if(!exists(outputDir)) {
 # stop()
 ```
 
-Read downsampled dataset
+Read down-sampled dataset
 
 ```{r, include = F}
-# full_df <- readRDS(
+# df_downsample <- readRDS(
   # paste0(fileDir,
          # "production_survival_noYoungAnimal_gebv_beforeParity5_noOutliear.RData"))
 
-full_df <- readRDS(paste0(fileDir, "modeling/df_downsample.RData"))
+df_downsample <- readRDS(paste0(fileDir, "modeling/df_downsample.RData"))
 ```
 
 
 ```{r, eval = F}
-names(full_df)
+names(df_downsample)
 #  [1] "AnimalDurableCode"             "DaysFromBirthToParturition"    "DaysFromParturitionToHerdTest"
 #  [4] "InducedParturitionFlag"        "Volume_ml"                     "FatVolume_ml"                 
 #  [7] "ProteinVolume_ml"              "AgeParity"                     "HerdDurableKey"               
@@ -101,7 +101,7 @@ names(full_df)
 # Holstein percentage distribution by milking type
 
 ```{r holstein}
-holstein_pct <- full_df %>% 
+holstein_pct <- df_downsample %>% 
   select(HerdDurableKey, AnimalDurableCode, PctHolstein, PctFriesian,
          herd_milk_type) %>% 
   distinct() %>% 
@@ -146,10 +146,10 @@ For each cow, get the mean volume of all the herd tests in that month across
 all years, i.e. life time mean volume by month.  
 Then get the distribution of the above for each herd.
 
-98% cows have herd tests in Sept, Nov or Dec, hence the 3 months.
+98% cows have herd tests in Sept, Oct, Nov or Dec, hence the 4 months.
 
 ```{r milk_vol}
-milk_vol <- select(full_df, HerdDurableKey, herd_milk_type, AnimalDurableCode,
+milk_vol <- select(df_downsample, HerdDurableKey, herd_milk_type, AnimalDurableCode,
                    event_date, Volume_ml) %>% 
   mutate(mo = lubridate::month(event_date),
          herd_milk_type = factor(herd_milk_type, 
@@ -171,8 +171,6 @@ sumstat_milk_vol <- ungroup(milk_vol) %>% group_by(month, herd_milk_type) %>%
   summarise(min = min(vol), mean = mean(vol), sd = sd(vol),
             max = max(vol)) 
 
-write.csv(sumstat_milk_vol, paste0(outputDir, "sumstat_milk_vol.csv"),
-          row.names = F)
 sumstat_milk_vol%>% 
   knitr::kable(format.args = list(big.mark = ","), digits = 0, 
                caption = "Mean cow milk volume by month and herd milking type") %>% 
@@ -198,21 +196,48 @@ ggboxplot(milk_vol, "herd_milk_type", "vol", fill = "herd_milk_type",
 
 ```
 
+```{r milk vol perc}
+sumstat_milk_vol$percent <- 0
+for (i in min(sumstat_milk_vol$month):max(sumstat_milk_vol$month)) {
+  sumstat_milk_vol$percent[sumstat_milk_vol$month==i] <- 
+    sumstat_milk_vol$mean[sumstat_milk_vol$month==i]/
+    sumstat_milk_vol$mean[sumstat_milk_vol$herd_milk_type=="TAD" &
+                            sumstat_milk_vol$month==i]*100
+}
+write.csv(sumstat_milk_vol, paste0(outputDir, "sumstat_milk_vol.csv"),
+          row.names = F)
+
+sumstat_milk_vol$percent <- round(sumstat_milk_vol$percent, 2)
+
+ggbarplot(sumstat_milk_vol, "month", "percent", fill = "herd_milk_type", 
+          color = "black", 
+          label = rep(c("", "****", "****"), 4), # TRUE, 
+          position = position_dodge(0.9),
+          title = "Percent difference in monthly mean milk volume") +
+  scale_fill_manual(values = 
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(sumstat_milk_vol$herd_milk_type)-1, "Set3"))) 
+```
+
 # Herd size distribution by milking type
 
-## mean across years
+## N herds
 
-```{r herd size}
-size <- full_df %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
+```{r herd n}
+size <- df_downsample %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
+  summarise(count = n()) %>% ungroup() %>% 
+  group_by(DairyYear, herd_milk_type) %>% 
   tally() %>% ungroup() %>% 
-  mutate(size = n) %>% 
-  group_by(herd_milk_type, DairyYear) %>% 
-  summarise(count = n(), min = min(size), median = median(size), max = max(size), 
-            mean = mean(size), SD = sd(size))
+  group_by(herd_milk_type) %>% 
+  summarise(count = n(), min = min(n), median = median(n), max = max(n), 
+            mean = mean(n), SD = sd(n))
 write.csv(size, paste0(outputDir, "herd_size_by_year.csv"), row.names = F)
 
-size <- full_df %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
-  tally() %>% ungroup() %>% 
+size <- df_downsample %>% group_by(DairyYear, herd_milk_type, HerdDurableKey) %>% 
+  summarise(count = n()) %>% ungroup() %>% 
+  group_by(DairyYear, herd_milk_type) %>% 
+  tally() %>% 
   mutate(herd_milk_type = factor(herd_milk_type, 
                                  levels = c("Transition", "OAD", "TAD")),
          DairyYear = factor(DairyYear))
@@ -224,28 +249,54 @@ ggline(size, "DairyYear", "n", add = "mean_se", color = "herd_milk_type",
                      # label.y = 450) + # rep(500, nlevels(size$DairyYear))) 
 ```
 
+## mean across years
+
+```{r herd size}
+group_by(df_downsample, new_milk_type, DairyYear) %>% 
+ # summarise(count = n()) %>% 
+  #ungroup() %>% group_by(herd_milk_type, new_milk_type) %>% 
+  tally() %>% ungroup() %>% 
+  group_by(new_milk_type) %>% 
+  summarise(count = round(mean(n), digits = 0)) %>% ungroup() %>% 
+  mutate(prop = count/sum(count)) %>% 
+  knitr::kable(align = "l",
+               caption = "Mean N animals by milking type across years", 
+               digits = 3,
+               format.args = list(big.mark=",")) %>% 
+  kable_styling(full_width = T)
+```
+
 ## per year
 
 ```{r herd size1, cache = T}
-for(i in min(full_df$DairyYear):max(full_df$DairyYear)) {
-  herd_size <- full_df %>% 
+for(i in min(df_downsample$DairyYear):max(df_downsample$DairyYear)) {
+  herd_size <- df_downsample %>% 
     filter(DairyYear == i) %>% 
     group_by(herd_milk_type, HerdDurableKey) %>% 
-    tally()
+    tally() %>% 
+    mutate(mean = mean(n), median = median(n))
 
-ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
-    summarise(count = n(), min = min(n), mean = mean(n), sd = sd(n),
-              max = max(n)) %>%
-    knitr::kable(digits = 0, 
-                 caption = paste0("Mean herd size by herd milking type in ", i)) %>% 
-    kableExtra::kable_styling(full_width = T)
+# ungroup(herd_size) %>% group_by(herd_milk_type) %>% 
+#     summarise(count = n(), min = min(n), mean = mean(n), sd = sd(n),
+#               max = max(n)) %>%
+#     knitr::kable(digits = 0, 
+#                  caption = paste0("Mean herd size by herd milking type in ", i)) %>% 
+#     kableExtra::kable_styling(full_width = T)
 
-  p <- herd_size %>% 
-  gghistogram(x = "n", binwidth = 5, add = "mean", fill = "herd_milk_type",
-              title = i
-              ) %>% 
-  facet("herd_milk_type", nrow = 3, ncol = 1, scales = "free_y") %>% 
-  ggpar(legend = "none")
+p <- ggplot(herd_size, aes(n)) +
+  geom_histogram(bins = 100) +
+  facet_grid(herd_milk_type~., scale = "free_y") +
+  geom_vline(aes(xintercept = mean, group = herd_milk_type), color = "red") +
+  geom_vline(aes(xintercept = median, group = herd_milk_type), color = "blue") +
+  # geom_vline(aes(xintercept = mean(n)+2*sd(n)), color = "blue") +
+  labs(title = i)
+
+# p <- herd_size %>% 
+  # gghistogram(x = "n", binwidth = 5, add = "mean", fill = "herd_milk_type",
+  #             title = i
+  #             ) %>% 
+  # facet("herd_milk_type", nrow = 3, ncol = 1, scales = "free_y") %>% 
+  # ggpar(legend = "none")
 
   print(p)
 }
@@ -256,8 +307,8 @@ ungroup(herd_size) %>% group_by(herd_milk_type) %>%
 *Animals with missing survival are removed.*
 
 ```{r survival, cache = T, echo = F}
-sur_milk_type <- lapply(2:5, function(i) {
-  out <- full_df %>% filter(AgeParity==i) %>% 
+sur_milk_type <- lapply(2:6, function(i) {
+  out <- df_downsample %>% filter(AgeParity==i) %>% 
     filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
     group_by(new_milk_type, across(paste0("s", i-1, i))) %>% 
     tally() %>% 
@@ -358,10 +409,10 @@ write.csv(prop, paste0(outputDir, "survival_in_milk_type.csv"),
 # EBV distribution within new_milk_type
 
 ```{r ebv, cache=TRUE}
-sumstat_ebv <- lapply(grep("EBV_", names(full_df), value = T), function(i) {
+sumstat_ebv <- lapply(grep("EBV_", names(df_downsample), value = T), function(i) {
   
   # table for plot
-  sumstat_ebv <- select(full_df, ends_with(i), # starts_with("EBV_"),
+  sumstat_ebv <- select(df_downsample, ends_with(i), # starts_with("EBV_"),
                       new_milk_type) %>% #, new_milk_type) %>% 
     group_by(new_milk_type) %>% 
     summarise(across(everything(), 
@@ -376,7 +427,7 @@ sumstat_ebv <- lapply(grep("EBV_", names(full_df), value = T), function(i) {
   # # calculate t test p value
   # ps <- lapply(grep("OAD$|Tran", names(out), value = T), function(j) {
   #   return(t.test(as.formula(paste0(i, "~new_milk_type")),
-  #          data = select(full_df, new_milk_type, matches(i)) %>% 
+  #          data = select(df_downsample, new_milk_type, matches(i)) %>% 
   #            filter(new_milk_type %in% c("TAD", j)))$p.value)
   # })
   # 
@@ -419,10 +470,10 @@ knitr::kable(
 # GBV distribution within new_milk_type
 
 ```{r ebv1, cache=TRUE}
-sumstat_gbv <- lapply(grep("GBV_", names(full_df), value = T), function(i) {
+sumstat_gbv <- lapply(grep("GBV_", names(df_downsample), value = T), function(i) {
   
   # table for plot
-  sumstat_gbv <- select(full_df, ends_with(i), # starts_with("EBV_"),
+  sumstat_gbv <- select(df_downsample, ends_with(i), # starts_with("EBV_"),
                       new_milk_type) %>% #, new_milk_type) %>% 
     group_by(new_milk_type) %>% 
     summarise(across(everything(), 
@@ -437,7 +488,7 @@ sumstat_gbv <- lapply(grep("GBV_", names(full_df), value = T), function(i) {
   # # calculate t test p value
   # ps <- lapply(grep("OAD$|Tran", names(out), value = T), function(j) {
   #   return(t.test(as.formula(paste0(i, "~new_milk_type")),
-  #          data = select(full_df, new_milk_type, matches(i)) %>% 
+  #          data = select(df_downsample, new_milk_type, matches(i)) %>% 
   #            filter(new_milk_type %in% c("TAD", j)))$p.value)
   # })
   # 
@@ -491,7 +542,7 @@ traits <- c("BodyConditionScore", "Fertility_CR42", "FunctionalSurvival",
 # very slow
 # probably because too many obs
 
-df <- select(full_df, AnimalDurableCode, matches("BV_")) %>% 
+df <- select(df_downsample, AnimalDurableCode, matches("BV_")) %>% 
   distinct()
 
 ps <- lapply(traits, function(trait) {
@@ -518,8 +569,8 @@ It takes too long to plot so only plot one trait
 ```{r ebv_boxplot, cache = TRUE, eval = F}
 # Error in lazyLoadDBinsertValue(data, datafile, ascii, compress, envhook) : 
   # long vectors not supported yet: connections.c:6011
-i <- grep("EBV_", names(full_df), value = T)[1]
-  p <- ggboxplot(filter(full_df, !is.na(new_milk_type)),
+i <- grep("EBV_", names(df_downsample), value = T)[1]
+  p <- ggboxplot(filter(df_downsample, !is.na(new_milk_type)),
                  "new_milk_type", i, fill = "new_milk_type",
                  palette = "jco") +
     stat_compare_means(method = "anova") +
@@ -542,14 +593,14 @@ gbv_plot$evaluation <- "GEBV"
 for_plot <- rbind(ebv_plot, gbv_plot)
 for_plot$trait <- strsplit(for_plot$trait, "BV_") %>% sapply(tail, 1)
 
-traits <- grep("BV_", names(full_df), value = T) %>% 
+traits <- grep("BV_", names(df_downsample), value = T) %>% 
   strsplit("BV_") %>% sapply(tail, 1) %>% unique()
 
 if(length(unique(for_plot$trait))!=length(traits)) stop("EBV_barchart, trait n inconsistent")
 # t test GBV vs EBV
 p_values <- lapply(unique(traits), function(i) {
   
-  df <- full_df %>% 
+  df <- df_downsample %>% 
     select(new_milk_type, AnimalDurableCode, matches(paste0("BV_", i, "$"))) %>% 
     distinct() %>% 
     pivot_longer(matches(i), "evaluation", paste0("_", i), values_to = "value")
@@ -576,7 +627,7 @@ ps <- lapply(unique(for_plot$trait), function(i) {
                                 ifelse(p_value < 0.05, "*", ""))),
            new_milk_type = 
              factor(new_milk_type, 
-                    levels = c("TAD", setdiff(unique(df$new_milk_type), "TAD"))))
+                    levels = c("TAD", setdiff(unique(new_milk_type), "TAD"))))
   
   df$sign[df$evaluation=="EBV"] <- ""
   
@@ -591,7 +642,7 @@ ps <- lapply(unique(for_plot$trait), function(i) {
                 theme_classic()))
 })
 
-sapply(lapply(ps, `[[`, "p"), print)
+invisible(sapply(lapply(ps, `[[`, "p"), print))
 
 sumstat_gbv_ebv <- do.call(rbind.data.frame, lapply(ps, `[[`, "df"))
 write.csv(sumstat_gbv_ebv, paste0(outputDir, "ebv_gbv_compare.csv"))
@@ -603,7 +654,7 @@ write.csv(sumstat_gbv_ebv, paste0(outputDir, "ebv_gbv_compare.csv"))
 ```{r ebv within sur and milk, results='asis'}
 
 ebv_sur_milk <- lapply(2:5, function(i) {
-  out <- full_df %>% filter(AgeParity==i) %>% 
+  out <- df_downsample %>% filter(AgeParity==i) %>% 
     filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
     select(new_milk_type, starts_with("s"), starts_with("EBV")) %>% 
     group_by(new_milk_type, across(paste0("s", i-1, i))) %>% 
@@ -628,9 +679,9 @@ longer <- ebv_sur_milk %>%
 ```{r t test, cache=TRUE}
 by_sur <- lapply(2:5, function(i) {
   
-  by_trait <- lapply(grep("EBV_", names(full_df), value = T), function(j) {
+  by_trait <- lapply(grep("EBV_", names(df_downsample), value = T), function(j) {
     
-    df <- filter(full_df, AgeParity==i) %>% 
+    df <- filter(df_downsample, AgeParity==i) %>% 
       select(matches(paste0("s", i-1, i)), new_milk_type, matches(j),
              AnimalDurableCode) %>% 
       pivot_longer(starts_with("s"), "survival", values_to = "value") %>% 

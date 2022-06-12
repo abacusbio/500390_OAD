@@ -41,14 +41,16 @@ saveRDS(test, paste0(outputDir, "ebvs.RData"))
 ebvs <- test
 test <- NULL
 
-df_new <- left_join(production, ebvs) %>% 
-  select(-year)
+# ebvs <- readRDS(paste0(outputDir, "ebvs.RData"))
+df_new <- left_join(production, ebvs) # %>% 
+  # select(-year)
 rm(list = ls(pattern = "animals|production|ebvs"))
 # saveRDS(df_new, paste0(outputDir, 
                      # "production_survival_noYoungAnimal_ebv.RData"))
 
 # figure out transition parity #
 # df_new <- readRDS(paste0(outputDir, "production_survival_noYoungAnimal_ebv.RData"))
+# df_new <- select(df_new, -transition_parity)
 df_sub <- filter(df_new, herd_milk_type=="Transition" 
                  & DairyYear==transition_year) %>% # some cows do not have this year.
   # either died before, or too old?
@@ -65,7 +67,7 @@ df_sub <- select(df_sub, AnimalDurableCode, HerdDurableKey, AgeParity,
   distinct()
 df_sub$transition_parity <- paste0("s", df_sub$AgeParity-2, df_sub$AgeParity-1)
 df_sub$transition_parity[df_sub$AgeParity<3] <- "too_early"
-df_sub$transition_parity[df_sub$AgeParity>6] <- "too_late"
+df_sub$transition_parity[df_sub$AgeParity>7] <- "too_late" # 9june2022 changed from 6 to 7
 
 df_new <- left_join(df_new, select(df_sub, AnimalDurableCode, HerdDurableKey,
                                    transition_parity))
