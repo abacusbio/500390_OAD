@@ -507,11 +507,11 @@ test <- lapply(c("EBV", "GBV"), function(bv) {
 })
 names(test) <- c("ebv", "gbv")
 
-df_coef_glms_EBV <- test$ebv$coef
-df_coef_glms_GBV <- test$gbv$coef
+df_coef_glms_x_EBV <- test$ebv$coef
+df_coef_glms_x_GBV <- test$gbv$coef
 
-df_anova_glms_EBV <- test$ebv$anova
-df_anova_glms_GBV <- test$gbv$anova
+df_anova_glms_x_EBV <- test$ebv$anova
+df_anova_glms_x_GBV <- test$gbv$anova
 ```
 
 ## Coefficients
@@ -539,7 +539,7 @@ The stars mean if their effects are significant in the model.
 # bv <- "EBV"
 
 invisible(lapply(c("EBV", "GBV"), function(bv) {
-  p <- ggplot(get(paste0("df_coef_glms_", bv)) %>% 
+  p <- ggplot(get(paste0("df_coef_glms_x_", bv)) %>% 
                 filter(Trait %in% essential_traits), 
               aes(x = survival, y = Estimate, fill = predictor)) + 
     geom_bar(stat = "identity", color = "black", 
@@ -568,7 +568,7 @@ in the model (new value = old value + old value^2)
 # bv <- "EBV"
 
 invisible(lapply(c("EBV", "GBV"), function(bv) {
-  p <- ggplot(get(paste0("df_coef_glms_", bv)) %>% 
+  p <- ggplot(get(paste0("df_coef_glms_x_", bv)) %>% 
                 filter(!Trait %in% essential_traits), 
               aes(x = survival, y = Estimate, fill = predictor)) + 
     geom_bar(stat = "identity", color = "black", 
@@ -590,7 +590,7 @@ print(p)
 ```{r coef_table, echo=FALSE, eval=FALSE}
  
 # convert coef output
-print_coef <- df_coef_glms %>% 
+print_coef <- df_coef_x_glms %>% 
   select(Trait, predictor, Estimate, sign, survival) %>% 
   pivot_wider(id_cols = matches("Trait|predi"), 
               names_from = survival, values_from = c(Estimate, sign), 
@@ -617,10 +617,10 @@ knitr::kable(print_coef, align = "l",
 
 ```{r coef_ebv_gbv, fig.width=8, fig.height=16}
 
-df_coef_glms_EBV$evaluation <- "EBV"
-df_coef_glms_GBV$evaluation <- "GEBV"
+df_coef_glms_x_EBV$evaluation <- "EBV"
+df_coef_glms_x_GBV$evaluation <- "GEBV"
 
-df <- rbind(df_coef_glms_EBV, df_coef_glms_GBV) # %>% 
+df <- rbind(df_coef_glms_x_EBV, df_coef_glms_x_GBV) # %>% 
  # filter(predictor == "Trait_x_OAD")
 write.csv(df, paste0(outputDir, "coef_glm_x_all.csv"))
 
@@ -653,6 +653,76 @@ ggplot(filter(df, !Trait %in% essential_traits),
   scale_fill_brewer(palette = "Paired") +
   theme_pubclean() # +
 ```
+
+#### For paper
+
+#### Essential traits
+
+##### TAD and OAD only
+
+```{r simple_model_coef, fig.show='asis', fig.height=16, fig.width=8}
+# cOMBINE THE P VALUE OF interaction model with single trait model picture
+df_coef_glms_EBV <- mutate(df_coef_glms_EBV,
+                           std_coef = Estimate*`Std..Error`)
+
+test <- df_coef_glms_x_EBV %>% 
+  filter(predictor == "Trait_x_OAD") %>% 
+  mutate(sign_x = sign) %>% 
+  select(Trait, survival, sign_x)
+
+test <- left_join(df_coef_glms_EBV, test)
+test$sign_x[test$milk_type=="TAD"] <- ""
+
+# invisible( # avoind printing lapply outputs e.g. [1][[1]] [2][[2]]
+#   lapply(c("EBV"), function(bv) {
+ # lapply(seq(essential_traits), function(i) {
+    bv <- "EBV"
+    df <- test %>% 
+          #   filter(Trait == essential_traits[i]) %>% 
+        filter(Trait %in% essential_traits) %>% 
+             mutate(milk_type = 
+                      factor(milk_type, 
+                             levels = c("TAD", setdiff(unique(milk_type), "TAD")
+                                        ))) %>% 
+      filter(as.integer(milk_type)<=2)
+   # color <- ifelse(i==length(essential_traits), "black", "white")
+    
+    p <- ggplot(#get(paste0("df_coef_glms_", bv)) %>%
+           #filter(Trait %in% essential_traits),
+      df,
+         aes(survival, std_coef, fill = milk_type)) +
+    geom_bar(stat="identity", color="black", position = position_dodge(.9)) +
+    # geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
+                  # width=.2, position=position_dodge(.9)) +
+    geom_text(aes(y = std_coef, label = sign),
+              position = position_dodge(.9)
+              #, vjust = -diff(range(df$Estimate))/100
+              ) +
+    geom_text(aes(y = std_coef, label = sign_x),
+              position = position_dodge(.9), color = "red"
+              , vjust = diff(range(df$std_coef))/90
+              ) +
+    labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
+                        # essential_traits[i]),
+         # x = "", y = ""
+         ) +
+    facet_grid(Trait~., scales = "free_y") +
+    # scale_fill_brewer(palette = "Set3") +
+    scale_fill_manual(values =
+                      c("grey", #ggpubr::get_palette("npg", 5)
+                        RColorBrewer::brewer.pal(
+                          nlevels(df$milk_type)-1, "Set3"))) +
+    theme_pubclean() # +
+      # theme(legend.position = ifelse(i==1, "top", "none"),
+            # axis.text.x = element_text(color = color)
+            # )
+    print(p)
+ # })
+# })
+# )
+
+```
+
 
 ## Model powers
 

@@ -42,60 +42,45 @@ if(!exists(outputDir)) {
 Read down-sampled dataset
 
 ```{r, include = F}
-# df_downsample <- readRDS(
-  # paste0(fileDir,
-         # "production_survival_noYoungAnimal_gebv_beforeParity5_noOutliear.RData"))
-
-df_downsample <- readRDS(paste0(fileDir, "modeling/df_downsample.RData"))
-```
-
-
-```{r, eval = F}
-names(df_downsample)
-#  [1] "AnimalDurableCode"             "DaysFromBirthToParturition"    "DaysFromParturitionToHerdTest"
-#  [4] "InducedParturitionFlag"        "Volume_ml"                     "FatVolume_ml"                 
-#  [7] "ProteinVolume_ml"              "AgeParity"                     "HerdDurableKey"               
-# [10] "DairyYear"                     "Season"                        "EventDate"                    
-# [13] "AgeParityGroup"                "RegimeType"                    "event_date"                   
-# [16] "herd_milk_type"                "transition_year"               "s12"                          
-# [19] "s23"                           "s34"                           "s45"                          
-# [22] "EBV_BodyConditionScore"        "EBV_Fertility_CR42"            "EBV_Fertility_CSD0"           
-# [25] "EBV_Fertility_CSD123"          "EBV_Fertility_PM123"           "EBV_FunctionalSurvival"       
-# [28] "EBV_IndirectSurvival"          "EBV_SomaticCellScore"          "EBV_Survival"                 
-# [31] "EBV_TOP_AdaptabilityToMilking" "EBV_TOP_Capacity"              "EBV_TOP_DairyConformation"    
-# [34] "EBV_TOP_ForeUdder"             "EBV_TOP_FrontTeat"             "EBV_TOP_Legs"                 
-# [37] "EBV_TOP_MilkingSpeed"          "EBV_TOP_OverallOpinion"        "EBV_TOP_RearTeat"             
-# [40] "EBV_TOP_RearUdder"             "EBV_TOP_RumpAngle"             "EBV_TOP_RumpWidth"            
-# [43] "EBV_TOP_ShedTemperament"       "EBV_TOP_Stature"               "EBV_TOP_TeatLength"           
-# [46] "EBV_TOP_UdderOverall"          "EBV_TOP_UdderSupport"          "EBV_TotalFat"                 
-# [49] "EBV_TotalProtein"              "EBV_TotalVolume"               "transition_parity"            
-# [52] "EBV_Liveweight"                "GBV_TotalFat"                  "GBV_TotalProtein"             
-# [55] "GBV_TotalVolume"               "GBV_Liveweight"                "GBV_SomaticCellScore"         
-# [58] "GBV_Fertility_CR42"            "GBV_BodyConditionScore"        "GBV_FunctionalSurvival"       
-# [61] "GBV_TOP_AdaptabilityToMilking" "GBV_TOP_ShedTemperament"       "GBV_TOP_MilkingSpeed"         
-# [64] "GBV_TOP_OverallOpinion"        "GBV_TOP_Stature"               "GBV_TOP_Capacity"             
-# [67] "GBV_TOP_RumpAngle"             "GBV_TOP_RumpWidth"             "GBV_TOP_Legs"                 
-# [70] "GBV_TOP_UdderSupport"          "GBV_TOP_ForeUdder"             "GBV_TOP_RearUdder"            
-# [73] "GBV_TOP_FrontTeat"             "GBV_TOP_RearTeat"              "GBV_TOP_TeatLength"           
-# [76] "GBV_TOP_UdderOverall"          "GBV_TOP_DairyConformation"     "PctHolstein"        
-# "PctFriesian" 
-# [81] "EBV_TOP_AdaptabilityToMilking2" "EBV_TOP_Capacity2"             
- # [83] "EBV_TOP_DairyConformation2"     "EBV_TOP_ForeUdder2"            
- # [85] "EBV_TOP_FrontTeat2"             "EBV_TOP_Legs2"                 
- # [87] "EBV_TOP_MilkingSpeed2"          "EBV_TOP_OverallOpinion2"
- # [89] "EBV_TOP_RearTeat2"              "EBV_TOP_RearUdder2"
- # # [91] "EBV_TOP_RumpAngle2"             "EBV_TOP_RumpWidth2"            
- # [93] "EBV_TOP_ShedTemperament2"       "EBV_TOP_Stature2"              
- # [95] "EBV_TOP_TeatLength2"            "EBV_TOP_UdderOverall2"         
- # [97] "EBV_TOP_UdderSupport2"          "GBV_TOP_AdaptabilityToMilking2"
- # [99] "GBV_TOP_ShedTemperament2"       "GBV_TOP_MilkingSpeed2"         
-# [101] "GBV_TOP_OverallOpinion2"        "GBV_TOP_Stature2"              
-# [103] "GBV_TOP_Capacity2"              "GBV_TOP_RumpAngle2"            
-# [105] "GBV_TOP_RumpWidth2"             "GBV_TOP_Legs2"                 
-# [107] "GBV_TOP_UdderSupport2"          "GBV_TOP_ForeUdder2"            
-# [109] "GBV_TOP_RearUdder2"             "GBV_TOP_FrontTeat2"            
-# [111] "GBV_TOP_RearTeat2"              "GBV_TOP_TeatLength2"           
-# [113] "GBV_TOP_UdderOverall2"          "GBV_TOP_DairyConformation2"    
+#   [1] "AnimalDurableCode"              "DaysFromBirthToParturition"     "DaysFromParturitionToHerdTest" 
+#   [4] "InducedParturitionFlag"         "Volume_ml"                      "FatVolume_ml"                  
+#   [7] "ProteinVolume_ml"               "AgeParity"                      "HerdDurableKey"                
+#  [10] "DairyYear"                      "Season"                         "EventDate"                     
+#  [13] "AgeParityGroup"                 "RegimeType"                     "event_date"                    
+#  [16] "herd_milk_type"                 "transition_year"                "s12"                           
+#  [19] "s23"                            "s34"                            "s45"                           
+#  [22] "birthdate"                      "birthyear"                      "s56"                           
+#  [25] "EBV_BodyConditionScore"         "EBV_Fertility_CR42"             "EBV_Fertility_CSD0"            
+#  [28] "EBV_Fertility_CSD123"           "EBV_Fertility_PM123"            "EBV_FunctionalSurvival"        
+#  [31] "EBV_IndirectSurvival"           "EBV_Liveweight"                 "EBV_SomaticCellScore"          
+#  [34] "EBV_Survival"                   "EBV_TOP_AdaptabilityToMilking"  "EBV_TOP_Capacity"              
+#  [37] "EBV_TOP_DairyConformation"      "EBV_TOP_ForeUdder"              "EBV_TOP_FrontTeat"             
+#  [40] "EBV_TOP_Legs"                   "EBV_TOP_MilkingSpeed"           "EBV_TOP_OverallOpinion"        
+#  [43] "EBV_TOP_RearTeat"               "EBV_TOP_RearUdder"              "EBV_TOP_RumpAngle"             
+#  [46] "EBV_TOP_RumpWidth"              "EBV_TOP_ShedTemperament"        "EBV_TOP_Stature"               
+#  [49] "EBV_TOP_TeatLength"             "EBV_TOP_UdderOverall"           "EBV_TOP_UdderSupport"          
+#  [52] "EBV_TotalFat"                   "EBV_TotalProtein"               "EBV_TotalVolume"               
+#  [55] "transition_parity"              "new_milk_type"                  "GBV_TotalFat"                  
+#  [58] "GBV_TotalProtein"               "GBV_TotalVolume"                "GBV_Liveweight"                
+#  [61] "GBV_SomaticCellScore"           "GBV_Fertility_CR42"             "GBV_BodyConditionScore"        
+#  [64] "GBV_FunctionalSurvival"         "GBV_TOP_AdaptabilityToMilking"  "GBV_TOP_ShedTemperament"       
+#  [67] "GBV_TOP_MilkingSpeed"           "GBV_TOP_OverallOpinion"         "GBV_TOP_Stature"               
+#  [70] "GBV_TOP_Capacity"               "GBV_TOP_RumpAngle"              "GBV_TOP_RumpWidth"             
+#  [73] "GBV_TOP_Legs"                   "GBV_TOP_UdderSupport"           "GBV_TOP_ForeUdder"             
+#  [76] "GBV_TOP_RearUdder"              "GBV_TOP_FrontTeat"              "GBV_TOP_RearTeat"              
+#  [79] "GBV_TOP_TeatLength"             "GBV_TOP_UdderOverall"           "GBV_TOP_DairyConformation"     
+#  [82] "PctHolstein"                    "PctFriesian"                    "EBV_TOP_AdaptabilityToMilking2"
+#  [85] "EBV_TOP_Capacity2"              "EBV_TOP_DairyConformation2"     "EBV_TOP_ForeUdder2"            
+#  [88] "EBV_TOP_FrontTeat2"             "EBV_TOP_Legs2"                  "EBV_TOP_MilkingSpeed2"         
+#  [91] "EBV_TOP_OverallOpinion2"        "EBV_TOP_RearTeat2"              "EBV_TOP_RearUdder2"            
+#  [94] "EBV_TOP_RumpAngle2"             "EBV_TOP_RumpWidth2"             "EBV_TOP_ShedTemperament2"      
+#  [97] "EBV_TOP_Stature2"               "EBV_TOP_TeatLength2"            "EBV_TOP_UdderOverall2"         
+# [100] "EBV_TOP_UdderSupport2"          "GBV_TOP_AdaptabilityToMilking2" "GBV_TOP_ShedTemperament2"      
+# [103] "GBV_TOP_MilkingSpeed2"          "GBV_TOP_OverallOpinion2"        "GBV_TOP_Stature2"              
+# [106] "GBV_TOP_Capacity2"              "GBV_TOP_RumpAngle2"             "GBV_TOP_RumpWidth2"            
+# [109] "GBV_TOP_Legs2"                  "GBV_TOP_UdderSupport2"          "GBV_TOP_ForeUdder2"            
+# [112] "GBV_TOP_RearUdder2"             "GBV_TOP_FrontTeat2"             "GBV_TOP_RearTeat2"             
+# [115] "GBV_TOP_TeatLength2"            "GBV_TOP_UdderOverall2"          "GBV_TOP_DairyConformation2"      
 ```
 
 # Holstein percentage distribution by milking type
@@ -204,10 +189,11 @@ for (i in min(sumstat_milk_vol$month):max(sumstat_milk_vol$month)) {
     sumstat_milk_vol$mean[sumstat_milk_vol$herd_milk_type=="TAD" &
                             sumstat_milk_vol$month==i]*100
 }
+sumstat_milk_vol$percent <- round(sumstat_milk_vol$percent, 2)
 write.csv(sumstat_milk_vol, paste0(outputDir, "sumstat_milk_vol.csv"),
           row.names = F)
 
-sumstat_milk_vol$percent <- round(sumstat_milk_vol$percent, 2)
+sumstat_milk_vol %>% knitr::kable(digits = 2)
 
 ggbarplot(sumstat_milk_vol, "month", "percent", fill = "herd_milk_type", 
           color = "black", 
@@ -263,7 +249,7 @@ group_by(df_downsample, new_milk_type, DairyYear) %>%
                caption = "Mean N animals by milking type across years", 
                digits = 3,
                format.args = list(big.mark=",")) %>% 
-  kable_styling(full_width = T)
+  kableExtra::kable_styling(full_width = T)
 ```
 
 ## per year
@@ -653,7 +639,7 @@ write.csv(sumstat_gbv_ebv, paste0(outputDir, "ebv_gbv_compare.csv"))
 
 ```{r ebv within sur and milk, results='asis'}
 
-ebv_sur_milk <- lapply(2:5, function(i) {
+ebv_sur_milk <- lapply(2:6, function(i) {
   out <- df_downsample %>% filter(AgeParity==i) %>% 
     filter(across(paste0("s", i-1, i), ~.%in%c(T, F))) %>% 
     select(new_milk_type, starts_with("s"), starts_with("EBV")) %>% 
@@ -677,7 +663,7 @@ longer <- ebv_sur_milk %>%
 ```
 
 ```{r t test, cache=TRUE}
-by_sur <- lapply(2:5, function(i) {
+by_sur <- lapply(2:6, function(i) {
   
   by_trait <- lapply(grep("EBV_", names(df_downsample), value = T), function(j) {
     
