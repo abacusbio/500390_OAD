@@ -660,7 +660,7 @@ ggplot(filter(df, !Trait %in% essential_traits),
 
 ##### TAD and OAD only
 
-```{r simple_model_coef, fig.show='asis', fig.height=16, fig.width=8}
+```{r simple_model_coef, fig.show='asis', fig.height=16, fig.width=10}
 # cOMBINE THE P VALUE OF interaction model with single trait model picture
 df_coef_glms_EBV <- mutate(df_coef_glms_EBV,
                            std_coef = Estimate*`Std..Error`)
@@ -700,12 +700,12 @@ test$sign_x[test$milk_type=="TAD"] <- ""
               ) +
     geom_text(aes(y = std_coef, label = sign_x),
               position = position_dodge(.9), color = "red"
-              , vjust = diff(range(df$std_coef))/90
+              , vjust = 1
               ) +
-    labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
+    # labs(title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
                         # essential_traits[i]),
          # x = "", y = ""
-         ) +
+         # ) +
     facet_grid(Trait~., scales = "free_y") +
     # scale_fill_brewer(palette = "Set3") +
     scale_fill_manual(values =
