@@ -41,7 +41,13 @@ if(!exists(outputDir)) {
 
 Read down-sampled dataset
 
+```{r load, cache=TRUE, cache.lazy=FALSE, cache.extra=tools::md5sum("e:/500390_OAD/output/modeling/df_downsample.RData")}
+df_downsample <- readRDS(paste0(fileDir, "modeling/df_downsample.RData"))
+
+```
+
 ```{r, include = F}
+names(df_downsample)
 #   [1] "AnimalDurableCode"              "DaysFromBirthToParturition"     "DaysFromParturitionToHerdTest" 
 #   [4] "InducedParturitionFlag"         "Volume_ml"                      "FatVolume_ml"                  
 #   [7] "ProteinVolume_ml"               "AgeParity"                      "HerdDurableKey"                
@@ -394,15 +400,55 @@ write.csv(prop, paste0(outputDir, "survival_in_milk_type.csv"),
 
 # EBV distribution within new_milk_type
 
+## TAD OAD only, t test
+
 ```{r ebv, cache=TRUE}
-sumstat_ebv <- lapply(grep("EBV_", names(df_downsample), value = T), function(i) {
+df_sub <- select(df_downsample, matches("Durable"), new_milk_type,
+                 matches("EBV_"), matches("GBV_")) %>% 
+  distinct() %>% 
+  filter(new_milk_type %in% c("OAD", "TAD"))
+
+sumstat_ebv <- lapply(grep("EBV_", names(df_sub), value = T), function(i) {
+  
+    p_value <- t.test(x = df_sub[[i]][df_sub$new_milk_type=="OAD"],
+                      y = df_sub[[i]][df_sub$new_milk_type=="TAD"])$p.value
+
+ return(data.frame(trait = i, p_value = p_value))
+})
+
+sumstat_ebv <- do.call(rbind.data.frame, sumstat_ebv) 
+write.csv(sumstat_ebv, paste0(outputDir, "sumstat_ebv_pvalue.csv"),
+            quote = F, row.names = F, col.names = T)
+
+```
+
+
+## all milking types
+
+```{r ebv1, cache=TRUE}
+df_sub <- select(df_downsample, matches("Durable"), new_milk_type,
+                 matches("EBV_"), matches("GBV_")) %>% 
+  distinct()
+
+sumstat_ebv <- lapply(grep("EBV_", names(df_sub), value = T), function(i) {
   
   # table for plot
-  sumstat_ebv <- select(df_downsample, ends_with(i), # starts_with("EBV_"),
+  ## n obs without missing data
+  temp <- select(df_sub, ends_with(i), new_milk_type) %>% 
+    mutate(not_na = ifelse(is.na(!!i), F, T)) %>% 
+    group_by(new_milk_type, not_na) %>% 
+    tally() %>% 
+    rename(!!paste0(i, "_n") := n) %>% 
+    filter(not_na) %>% # only want not_na==TRUE
+    select(-not_na)
+    
+  
+  sumstat_ebv <- select(df_sub, ends_with(i), # starts_with("EBV_"),
                       new_milk_type) %>% #, new_milk_type) %>% 
     group_by(new_milk_type) %>% 
     summarise(across(everything(), 
                      list(mean = mean, median = median, SD = sd))) %>% 
+    left_join(temp) %>% 
     pivot_longer(-new_milk_type, "stat", paste0(i, "_"), values_to = i) 
 
   # table to print
@@ -413,7 +459,7 @@ sumstat_ebv <- lapply(grep("EBV_", names(df_downsample), value = T), function(i)
   # # calculate t test p value
   # ps <- lapply(grep("OAD$|Tran", names(out), value = T), function(j) {
   #   return(t.test(as.formula(paste0(i, "~new_milk_type")),
-  #          data = select(df_downsample, new_milk_type, matches(i)) %>% 
+  #          data = select(df_sub, new_milk_type, matches(i)) %>% 
   #            filter(new_milk_type %in% c("TAD", j)))$p.value)
   # })
   # 

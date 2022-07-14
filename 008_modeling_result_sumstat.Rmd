@@ -51,11 +51,11 @@ cat("Downsampled dataset has", nrow(df_downsample), "events,",
     unique(df_downsample$AnimalDurableCode) %>% length(), "cows, and",
     unique(df_downsample$HerdDurableKey) %>% length(), "herds.")
 
-group_by(df_downsample, new_milk_type, HerdDurableKey) %>% 
+group_by(df_downsample, herd_milk_type, HerdDurableKey) %>% 
   summarise(count = n()) %>% 
-  ungroup() %>% group_by(new_milk_type) %>% 
+  ungroup() %>% group_by(herd_milk_type) %>% 
   tally() %>% 
-  mutate(prop = n/sum(n)) %>% 
+  mutate(prop = n/length(unique(df_downsample$HerdDurableKey))) %>% 
   knitr::kable(align = "l", 
                caption = "Total N herds by milking type across years",
                digits = 2) %>% 
@@ -65,7 +65,7 @@ select(df_downsample, new_milk_type, AnimalDurableCode) %>%
   distinct() %>% 
   group_by(new_milk_type) %>% 
   tally() %>% ungroup() %>% 
-  mutate(prop = n/sum(n)) %>% 
+  mutate(prop = n/length(unique(df_downsample$AnimalDurableCode))) %>% 
   knitr::kable(align = "l",
                caption = "Total N animals by milking type across years", 
                digits = 3,
@@ -79,15 +79,15 @@ Herd size by age parity
 
 ```{r herd_size_by_age}
 
-group_by(df_downsample, new_milk_type, AgeParity, HerdDurableKey) %>% 
+group_by(df_downsample, herd_milk_type, AgeParity, HerdDurableKey) %>% 
   summarise(count = n()) %>% 
-  ungroup() %>% group_by(new_milk_type, AgeParity) %>% 
+  ungroup() %>% group_by(herd_milk_type, AgeParity) %>% 
   tally() %>% ungroup() %>% 
   mutate(prop = n/sum(n), AgeParity = as.factor(AgeParity)) %>% 
   # knitr::kable(align = "l", 
   #              caption = "N herds by herd Regime type and Age parity", digits = 2) %>% 
   # kable_styling(full_width = T)
-  ggplot(aes(new_milk_type, n, fill = AgeParity)) +
+  ggplot(aes(herd_milk_type, n, fill = AgeParity)) +
   geom_bar(stat = "identity", width = .8, color = "black", 
            position = position_dodge(.8)) +
   labs(x = "") +
@@ -98,10 +98,11 @@ group_by(df_downsample, new_milk_type, AgeParity, HerdDurableKey) %>%
 Number of cows by age parity
 
 ```{r n_cows_by_age}
-group_by(df_downsample, herd_milk_type, AgeParity, new_milk_type) %>% 
- # summarise(count = n()) %>% 
-  #ungroup() %>% group_by(herd_milk_type, new_milk_type) %>% 
+select(df_downsample, AgeParity, new_milk_type, AnimalDurableCode) %>% 
+  distinct() %>% 
+  group_by(new_milk_type, AgeParity) %>% 
   tally() %>% ungroup() %>% 
+  # group_by(AgeParity, new_milk_type, AnimalDurableCode) %>% 
   mutate(prop = n/sum(n), AgeParity = as.factor(AgeParity)) %>% 
   # knitr::kable(align = "l",
                # caption = "N animals by milking type", digits = 3,
@@ -116,6 +117,42 @@ group_by(df_downsample, herd_milk_type, AgeParity, new_milk_type) %>%
   scale_fill_brewer(palette = "Set3")
 
 ```
+## herd size and n cow for paper
+
+```{r count_for_paper}
+# herd size
+
+df_sub <- filter(df_downsample, herd_milk_type %in% c("TAD", "OAD")) 
+  
+herd_age_type <- 
+  group_by(df_sub, herd_milk_type, AgeParity, HerdDurableKey) %>% 
+  summarise(count = n()) %>% 
+  ungroup() %>% group_by(herd_milk_type, AgeParity) %>% 
+  tally() %>% ungroup() %>% 
+  mutate(prop = n/length(unique(df_sub$HerdDurableKey))*100,
+         AgeParity = as.factor(AgeParity))
+names(herd_age_type)[3:4] <- c("n_herd", "prop_herd")
+
+# herd_age_type %>% knitr::kable(digits = 2) 
+
+cow_age_type <-
+  select(df_sub, AgeParity, herd_milk_type, AnimalDurableCode) %>% 
+  distinct() %>% 
+  group_by(herd_milk_type, AgeParity) %>% 
+  tally() %>% ungroup() %>% 
+  mutate(prop = n/length(unique(df_sub$AnimalDurableCode))*100, 
+         AgeParity = as.factor(AgeParity))
+names(cow_age_type)[3:4] <- c("n_cow", "prop_cow")
+
+# cow_age_type %>% knitr::kable(digits = 2)
+
+age_type <- full_join(herd_age_type, cow_age_type)
+write.csv(age_type, paste0(outputDir, "n_herd_cow_by_age.csv"), quote = F,
+          row.names = F)
+
+age_type %>% knitr::kable(digits = 2) #%>% kable_styling()
+```
+
 
 ```{r essential_traits}
 essential_traits <- c("BodyConditionScore", "Fertility_CR42", 
