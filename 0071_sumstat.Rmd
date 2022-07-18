@@ -364,6 +364,7 @@ ggplot(filter(df, as.integer(new_milk_type) <=2),
   geom_bar(stat = "identity", width = .8, color = "black", position = position_dodge(.8)) +
   geom_text(aes(label = sign), position = position_dodge(.8),
             vjust = 0) + #-0.05) +
+  labs(x = "Survival", y = "Proportion") +
   theme_pubclean() +
   scale_fill_manual(values = 
                       c("grey", #ggpubr::get_palette("npg", 5)
@@ -501,7 +502,7 @@ knitr::kable(
 
 # GBV distribution within new_milk_type
 
-```{r ebv1, cache=TRUE}
+```{r gbv1, cache=TRUE}
 sumstat_gbv <- lapply(grep("GBV_", names(df_downsample), value = T), function(i) {
   
   # table for plot
