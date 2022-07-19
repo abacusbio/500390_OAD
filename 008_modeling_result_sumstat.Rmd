@@ -202,7 +202,9 @@ test <- lapply(c("EBV", "GBV"), function(bv) {
     df_anova_glms$sign <- ifelse(df_anova_glms$`p-value`<0.001, "***", 
                            ifelse(df_anova_glms$`p-value`<0.01, "**",
                                   ifelse(df_anova_glms$`p-value`<0.05, "*",
-                                         ifelse(df_anova_glms$`p-value`<0.1, ".",""))))
+                                         # ifelse(df_anova_glms$`p-value`<0.1, ".","")
+                                         ""
+                                         )))
   
     df_anova_glms <- df_anova_glms %>% 
       select(Trait, Df, Deviance, Resid..Df, Resid..Dev, `p-value`, sign, milk_type,
@@ -700,15 +702,21 @@ ggplot(filter(df, !Trait %in% essential_traits),
 ```{r simple_model_coef_paper, fig.show='asis', fig.height=16, fig.width=10}
 # cOMBINE THE P VALUE OF interaction model with single trait model picture
 df_coef_glms_EBV <- mutate(df_coef_glms_EBV,
-                           std_coef = Estimate*`Std..Error`)
+                           std_coef = Estimate*`Std..Error`,
+                           sign = case_when(sign == "." ~ "",
+                                            sign != "." ~ sign))
 
 test <- df_coef_glms_x_EBV %>% 
   filter(predictor == "Trait_x_OAD") %>% 
-  mutate(sign_x = sign) %>% 
+  mutate(sign_x = case_when(sign == "." ~ "",
+                            sign == "*" ~ "+",
+                            sign == "**" ~ "++",
+                            sign == "***" ~ "+++"))%>% 
   select(Trait, survival, sign_x)
 
 test <- left_join(df_coef_glms_EBV, test)
 test$sign_x[test$milk_type=="TAD"] <- ""
+test$survival <- toupper(test$survival)
 
 # invisible( # avoind printing lapply outputs e.g. [1][[1]] [2][[2]]
 #   lapply(c("EBV"), function(bv) {
@@ -732,12 +740,12 @@ test$sign_x[test$milk_type=="TAD"] <- ""
     # geom_errorbar(aes(ymin = Estimate-Std..Error, ymax = Estimate+Std..Error),
                   # width=.2, position=position_dodge(.9)) +
     geom_text(aes(y = std_coef, label = sign),
-              position = position_dodge(.9)
+              position = position_dodge(.9), size = 3, 
               #, vjust = -diff(range(df$Estimate))/100
               ) +
     geom_text(aes(y = std_coef, label = sign_x),
-              position = position_dodge(.9), color = "red"
-              , vjust = 1
+              position = position_dodge(.9), size = 2, # color = "red",
+              vjust = 1
               ) +
     labs(# title = bv #ifelse(i==1, paste0(bv, " ", essential_traits[i]),
                         # essential_traits[i]),
@@ -745,15 +753,14 @@ test$sign_x[test$milk_type=="TAD"] <- ""
          ) +
     facet_grid(Trait~., scales = "free_y") +
     # scale_fill_brewer(palette = "Set3") +
-    scale_fill_manual(values =
-                      c("grey", #ggpubr::get_palette("npg", 5)
-                        RColorBrewer::brewer.pal(
-                          nlevels(df$milk_type)-1, "Set3"))) +
-    theme_pubclean() # +
-      # theme(legend.position = ifelse(i==1, "top", "none"),
-            # axis.text.x = element_text(color = color)
-            # )
+    scale_fill_manual(values = c("grey", "grey35")) +
+    theme_pubclean() +
+    theme(text = element_text(size = 7), legend.position = "none")
     print(p)
+    
+    ggsave(paste0(outputDir, "Fig2.png"), p, 
+           limitsize = FALSE, width = 148, height = 202, dpi = 300, units= "mm",
+           device="png")
  # })
 # })
 # )

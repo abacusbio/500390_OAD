@@ -199,7 +199,11 @@ sumstat_milk_vol$percent <- round(sumstat_milk_vol$percent, 2)
 write.csv(sumstat_milk_vol, paste0(outputDir, "sumstat_milk_vol.csv"),
           row.names = F)
 
-sumstat_milk_vol %>% knitr::kable(digits = 2)
+sumstat_milk_vol %>% knitr::kable(align = "l",
+               caption = "Mean cow milk volume", 
+               digits = 3,
+               format.args = list(big.mark=",")) %>% 
+  kableExtra::kable_styling(full_width = T)
 
 ggbarplot(sumstat_milk_vol, "month", "percent", fill = "herd_milk_type", 
           color = "black", 
@@ -748,6 +752,7 @@ write.csv(longer, paste0(outputDir, "EBV_in_survival_milk_type.csv"),
           quote = F, row.names = F)
 
 ```
+
 
 ```{r ebv plot1, fig.show='asis', cache=TRUE}
 df <- longer %>% 
