@@ -718,6 +718,10 @@ test <- left_join(df_coef_glms_EBV, test)
 test$sign_x[test$milk_type=="TAD"] <- ""
 test$survival <- toupper(test$survival)
 
+# add line breaks
+test$Trait_new <- gsub("_", "\n", test$Trait)
+test$Trait_new <- gsub("([[:lower:]])([[:upper:]])", "\\1\n\\2", test$Trait_new) 
+
 # invisible( # avoind printing lapply outputs e.g. [1][[1]] [2][[2]]
 #   lapply(c("EBV"), function(bv) {
  # lapply(seq(essential_traits), function(i) {
@@ -751,11 +755,13 @@ test$survival <- toupper(test$survival)
                         # essential_traits[i]),
          x = "Survival", y = "Standardised coefficient"
          ) +
-    facet_grid(Trait~., scales = "free_y") +
-    # scale_fill_brewer(palette = "Set3") +
+    facet_grid(Trait_new~., scales = "free_y", 
+               # labeller = label_wrap_gen(width = 1)
+               ) +
     scale_fill_manual(values = c("grey", "grey35")) +
     theme_pubclean() +
-    theme(text = element_text(size = 7), legend.position = "none")
+    theme(text = element_text(size = 7), strip.text.y = element_text(size = 8),
+          legend.position = "none")
     print(p)
     
     ggsave(paste0(outputDir, "Fig2.png"), p, 
